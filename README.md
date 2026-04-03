@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CougPulse
+
+> **Smart Campus · WSU Everett Hackathon Project**
+> *Work in Progress — Team of 5*
+
+---
+
+## Overview
+
+**CougPulse** is a smart campus web application built for Washington State University Everett that provides a **real-time noise-level heatmap** of the campus building. The goal is to help students quickly find quiet spaces to study, while also integrating room availability data and intelligent occupancy estimation — all behind a secure, student-only login.
+
+---
+
+## Campus Context
+
+WSU Everett is a single-building campus. CougPulse is purpose-built around that layout, offering a full-building heatmap view with room-level granularity for noise levels and availability.
+
+---
+
+## Features
+
+### Noise Level Heatmap
+- Visual heatmap overlaid on a floor plan of the WSU Everett building
+- Displays real-time (and mocked) noise level data per room/zone
+- Helps students identify quiet areas for studying at a glance
+
+### Room Availability Integration
+- Pulls data from **WSU Everett 25Live** to display which rooms are reserved or currently unavailable
+- Combines availability and noise data for a complete picture of each space
+
+### Secure Student Login
+- Authentication required to access the application
+- Restricts access to WSU students only — protecting locational and occupancy data from outside parties
+
+### Noise Data Collection
+- Noise levels are collected via **microphones placed throughout the building**
+- *Current implementation:* One real microphone (phone-based); remaining sensor data points are **mocked/simulated**
+- Audio data is **encrypted** in transit and at rest
+
+### Camera-Based Security (Face Recognition)
+- Cameras are theoretically distributed throughout the building for security monitoring
+- *Current implementation:* One phone camera is used
+- Uses **facial recognition** to identify whether individuals are students, staff, or faculty
+- **Flags unrecognized individuals** who are not affiliated with WSU Everett
+- All location and timestamp logs are **encrypted** for privacy
+
+### Voice Recognition & Occupancy Estimation
+- Uses voice/audio recognition to **estimate the number of people** present in each room
+- **Admin view:** Enhanced capability to estimate or identify *who* is in each room based on voice and/or facial recognition data
+
+---
+
+## User Roles
+
+| Role | Capabilities |
+|------|-------------|
+| **Student** | View noise heatmap, check room availability, find quiet study spaces |
+| **Admin** | All student features + occupancy details, identity estimation per room, security flag review |
+
+---
+
+## Privacy & Security
+
+- Student login required — no public access to location or occupancy data
+- All audio data from microphones is **encrypted**
+- All location logs and timestamps are **encrypted**
+- Facial recognition flags are handled with access controls limited to authorized staff/admin
+
+---
+
+## Tech Stack
+
+> *To be documented — details coming soon.*
+
+---
 
 ## Getting Started
 
-First, run the development server:
+> *Setup and installation instructions coming soon.*
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Project Status
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Feature | Status |
+|--------|--------|
+| Noise Heatmap (UI) | In Progress |
+| 25Live Integration | In Progress |
+| Student Login / Auth | In Progress |
+| Microphone Data (Mocked) | In Progress |
+| Camera / Face Recognition | In Progress |
+| Voice Occupancy Estimation | In Progress |
+| Admin View | In Progress |
+| Encryption Layer | In Progress |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Team
 
-To learn more about Next.js, take a look at the following resources:
+Built by a team of **5** for the **Smart Campus Hackathon**.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+> *Team member names and roles to be added.*
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Notes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- This project is a **hackathon prototype**. Some hardware components (microphones, cameras) are simulated or represented by a single mobile device.
+- Additional features, tech stack details, and architectural decisions will be documented as the project evolves.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## License
+
+> *To be determined.*
+
