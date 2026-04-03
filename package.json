@@ -6,9 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:reset": "bash scripts/reset-db.sh"
   },
   "dependencies": {
+    "@prisma/client": "^7.6.0",
+    "argon2": "^0.44.0",
+    "dotenv": "^17.4.0",
     "next": "16.2.2",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -20,6 +24,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
+    "prisma": "^7.6.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
