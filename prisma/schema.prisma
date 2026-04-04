@@ -15,6 +15,16 @@ model AdminUser {
   updatedAt    DateTime @updatedAt
 }
 
+model DeviceAccount {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  token        String?  @unique
+  device       Device?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model Subject {
   id              String   @id @default(cuid())
   data            Bytes    // AES-256-GCM encrypted JSON: { name, descriptor }
@@ -53,6 +63,7 @@ model Room {
 model Device {
   id             String   @id @default(cuid())
   clientKey      String   @unique
+  accountId      String?  @unique
   name           String
   assignedRoomId String?
   lastSeenAt     DateTime?
@@ -63,6 +74,7 @@ model Device {
   nameIv         Bytes?
   previewData    Bytes?
   previewIv      Bytes?
+  account        DeviceAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

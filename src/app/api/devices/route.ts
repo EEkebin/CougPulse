@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { requireAdminUser } from '@/lib/auth'
-import { hashToken } from '@/lib/crypto'
 import { decryptOptionalString, encryptOptionalString } from '@/lib/secure-models'
 
 export async function GET(req: NextRequest) {
@@ -17,43 +17,22 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { name, clientKey } = await req.json().catch(() => ({}))
+  const { unauthorized } = await requireAdminUser(req)
+  if (unauthorized) return unauthorized
+
+  const { name } = await req.json().catch(() => ({}))
   const trimmedName = typeof name === 'string' && name.trim() ? name.trim() : 'Unassigned Device'
-  const trimmedClientKey = typeof clientKey === 'string' && clientKey.trim() ? clientKey.trim() : null
-
-  if (!trimmedClientKey) {
-    return NextResponse.json({ error: 'Missing clientKey' }, { status: 400 })
-  }
-
   const encryptedName = encryptOptionalString(trimmedName)
-  const clientKeyHash = hashToken(trimmedClientKey)
 
-  const existing = await prisma.device.findFirst({
-    where: {
-      OR: [
-        { clientKey: clientKeyHash },
-        { clientKey: trimmedClientKey },
-      ],
+  const device = await prisma.device.create({
+    data: {
+      clientKey: crypto.randomUUID(),
+      name: "Encrypted Device",
+      nameEncrypted: encryptedName.encrypted,
+      nameIv: encryptedName.iv,
+      lastSeenAt: new Date(),
     },
   })
-
-  const device = existing
-    ? await prisma.device.update({
-        where: { id: existing.id },
-        data: {
-          clientKey: clientKeyHash,
-          lastSeenAt: new Date(),
-        },
-      })
-    : await prisma.device.create({
-        data: {
-          clientKey: clientKeyHash,
-          name: "Encrypted Device",
-          nameEncrypted: encryptedName.encrypted,
-          nameIv: encryptedName.iv,
-          lastSeenAt: new Date(),
-        },
-      })
 
   return NextResponse.json({
     ...device,

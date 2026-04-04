@@ -5,7 +5,6 @@ import { randomUUID } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { hashToken } from "@/lib/crypto";
 import {
   ADMIN_TOKEN_HEADER,
   DEVICE_TOKEN_HEADER,
@@ -14,6 +13,10 @@ import {
 } from "@/lib/auth-shared";
 
 export function issueAdminToken() {
+  return randomUUID();
+}
+
+export function issueDeviceToken() {
   return randomUUID();
 }
 
@@ -50,6 +53,18 @@ export async function getAuthenticatedAdminUser(req: NextRequest) {
   });
 }
 
+export async function getAuthenticatedDeviceAccount(req: NextRequest) {
+  const token = req.headers.get(DEVICE_TOKEN_HEADER);
+  if (!token) return null;
+
+  return prisma.deviceAccount.findUnique({
+    where: { token },
+    include: {
+      device: true,
+    },
+  });
+}
+
 export async function requireAdminUser(req: NextRequest) {
   const adminUser = await getAuthenticatedAdminUser(req);
   if (!adminUser) {
@@ -65,6 +80,21 @@ export async function requireAdminUser(req: NextRequest) {
   };
 }
 
+export async function requireDeviceAccount(req: NextRequest) {
+  const deviceAccount = await getAuthenticatedDeviceAccount(req);
+  if (!deviceAccount) {
+    return {
+      deviceAccount: null,
+      unauthorized: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+
+  return {
+    deviceAccount,
+    unauthorized: null,
+  };
+}
+
 export async function requireDeviceOrAdmin(req: NextRequest, deviceId: string) {
   const adminUser = await getAuthenticatedAdminUser(req);
   if (adminUser) {
@@ -75,17 +105,8 @@ export async function requireDeviceOrAdmin(req: NextRequest, deviceId: string) {
     };
   }
 
-  const token = req.headers.get(DEVICE_TOKEN_HEADER);
-  if (!token) {
-    return {
-      adminUser: null,
-      device: null,
-      unauthorized: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
-
-  const device = await prisma.device.findUnique({ where: { id: deviceId } });
-  if (!device || (device.clientKey !== hashToken(token) && device.clientKey !== token)) {
+  const deviceAccount = await getAuthenticatedDeviceAccount(req);
+  if (!deviceAccount || deviceAccount.device?.id !== deviceId) {
     return {
       adminUser: null,
       device: null,
@@ -95,7 +116,7 @@ export async function requireDeviceOrAdmin(req: NextRequest, deviceId: string) {
 
   return {
     adminUser: null,
-    device,
+    device: deviceAccount.device,
     unauthorized: null,
   };
 }

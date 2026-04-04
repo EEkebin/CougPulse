@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import * as faceapi from "face-api.js";
-import { adminFetch, clearAdminToken } from "@/lib/admin-client";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { defaultDeviceName } from "@/lib/devices";
+import { clearDeviceAuthToken, deviceFetch, setDeviceAuthToken } from "@/lib/device-client";
 import type { LayoutFloor } from "@/lib/layout-types";
 
 type Device = {
@@ -19,6 +18,11 @@ type Device = {
   previewTakenAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+type DeviceAccount = {
+  id: string;
+  username: string;
 };
 
 type MatchResult = {
@@ -38,10 +42,6 @@ type DetectionLabel = {
   isTroublemaker: boolean;
 };
 
-const STORAGE_KEY = "cougpulse_device_id";
-const CLIENT_KEY_STORAGE = "cougpulse_device_client_key";
-const DEVICE_NAME_STORAGE = "cougpulse_device_name";
-const DEVICE_RECORD_STORAGE = "cougpulse_device_record";
 const HEARTBEAT_MS = 2000;
 const DEVICE_REFRESH_MS = 3000;
 const RECOGNITION_COOLDOWN_MS = 650;
@@ -50,26 +50,7 @@ const DEVICE_DETECTOR_OPTIONS = new faceapi.TinyFaceDetectorOptions({
   scoreThreshold: 0.45,
 });
 
-function readStoredDeviceRecord() {
-  if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(DEVICE_RECORD_STORAGE);
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw) as { id?: string; name?: string; clientKey?: string };
-  } catch {
-    window.localStorage.removeItem(DEVICE_RECORD_STORAGE);
-    return null;
-  }
-}
-
-function getStoredDeviceToken() {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(CLIENT_KEY_STORAGE);
-}
-
 export default function DevicePage() {
-  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -78,6 +59,7 @@ export default function DevicePage() {
   const lastRecognitionRef = useRef(0);
 
   const [device, setDevice] = useState<Device | null>(null);
+  const [deviceAccount, setDeviceAccount] = useState<DeviceAccount | null>(null);
   const [floors, setFloors] = useState<LayoutFloor[]>([]);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [streamActive, setStreamActive] = useState(false);
@@ -85,24 +67,53 @@ export default function DevicePage() {
   const [recognized, setRecognized] = useState<DetectionLabel[]>([]);
   const [alertBanner, setAlertBanner] = useState<string | null>(null);
   const [reportingEnabled, setReportingEnabled] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [deviceAuthenticated, setDeviceAuthenticated] = useState(false);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState("");
+
+  const roomLabelMap = useMemo(
+    () =>
+      new Map(
+        floors.flatMap((floor) =>
+          floor.rooms.map((room) => [room.id, `${room.name} (${floor.name})`] as const)
+        )
+      ),
+    [floors]
+  );
+
+  const assignedRoomLabel = useMemo(() => {
+    if (!device?.assignedRoomId) return "Waiting for security assignment";
+    return roomLabelMap.get(device.assignedRoomId) ?? device.assignedRoomId;
+  }, [device?.assignedRoomId, roomLabelMap]);
 
   useEffect(() => {
     let active = true;
 
     async function boot() {
-      const me = await adminFetch("/api/auth/me", { cache: "no-store" });
+      const me = await deviceFetch("/api/device-auth/me", { cache: "no-store" });
       if (!active) return;
 
       if (!me.ok) {
-        clearAdminToken();
-        router.replace("/login?next=/device");
+        clearDeviceAuthToken();
+        setAuthChecked(true);
+        setDeviceAuthenticated(false);
         return;
       }
 
-      setAuthReady(true);
-      ensureDevice();
-      loadModels();
+      const payload = await me.json();
+      if (!active) return;
+
+      setDeviceAccount({
+        id: payload.id,
+        username: payload.username,
+      });
+      setDevice(payload.device);
+      setDeviceAuthenticated(true);
+      setAuthChecked(true);
+      void loadModels();
       void loadFloors();
     }
 
@@ -110,48 +121,33 @@ export default function DevicePage() {
     return () => {
       active = false;
     };
-  }, [router]);
-
-  useEffect(() => {
-    if (!device || typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, device.id);
-    window.localStorage.setItem(DEVICE_NAME_STORAGE, device.name);
-    window.localStorage.setItem(DEVICE_RECORD_STORAGE, JSON.stringify({
-      id: device.id,
-      name: device.name,
-      clientKey: window.localStorage.getItem(CLIENT_KEY_STORAGE),
-    }));
-  }, [device]);
+  }, []);
 
   useEffect(() => {
     if (!streamActive || !device?.id) return;
 
     const heartbeat = window.setInterval(() => {
       const previewImage = capturePreview();
-      const deviceToken = getStoredDeviceToken();
-      fetch(`/api/devices/${device.id}/heartbeat`, {
+      deviceFetch(`/api/devices/${device.id}/heartbeat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(deviceToken ? { "x-device-token": deviceToken } : {}),
         },
         body: JSON.stringify({ audioLevel: audioLevelRef.current, previewImage }),
       })
-        .then((res) => res.ok ? res.json() : null)
+        .then((res) => (res.ok ? res.json() : null))
         .then((payload) => {
           if (payload?.device) setDevice(payload.device);
-                  setReportingEnabled(Boolean(payload?.reportingEnabled));
+          setReportingEnabled(Boolean(payload?.reportingEnabled));
         })
         .catch(() => {});
     }, HEARTBEAT_MS);
 
     const refresh = window.setInterval(() => {
-      const deviceToken = getStoredDeviceToken();
-      fetch(`/api/devices/${device.id}`, {
+      deviceFetch(`/api/devices/${device.id}`, {
         cache: "no-store",
-        headers: deviceToken ? { "x-device-token": deviceToken } : {},
       })
-        .then((res) => res.ok ? res.json() : null)
+        .then((res) => (res.ok ? res.json() : null))
         .then((payload) => {
           if (payload) setDevice(payload);
         })
@@ -192,12 +188,10 @@ export default function DevicePage() {
             const results = await Promise.all(
               detections.map(async (detection, index) => {
                 const faceImage = captureFaceImage(detection.detection.box);
-                const deviceToken = getStoredDeviceToken();
-                const res = await fetch("/api/identify", {
+                const res = await deviceFetch("/api/identify", {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
-                    ...(deviceToken ? { "x-device-token": deviceToken } : {}),
                   },
                   body: JSON.stringify({
                     descriptor: Array.from(detection.descriptor),
@@ -255,57 +249,11 @@ export default function DevicePage() {
 
     raf = window.requestAnimationFrame(loop);
     return () => window.cancelAnimationFrame(raf);
-  }, [device, modelsLoaded, streamActive]);
+  }, [device, modelsLoaded, streamActive, roomLabelMap]);
 
   useEffect(() => {
     setReportingEnabled(Boolean(device?.assignedRoomId));
   }, [device?.assignedRoomId]);
-
-  async function ensureDevice() {
-    const parsedRecord = readStoredDeviceRecord();
-    const storedName = typeof window !== "undefined" ? window.localStorage.getItem(DEVICE_NAME_STORAGE) ?? parsedRecord?.name ?? null : null;
-    const storedClientKey = typeof window !== "undefined" ? window.localStorage.getItem(CLIENT_KEY_STORAGE) ?? parsedRecord?.clientKey ?? null : null;
-    const storedId = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) ?? parsedRecord?.id ?? null : null;
-    if (storedId) {
-      const existing = await fetch(`/api/devices/${storedId}`, {
-        cache: "no-store",
-        headers: storedClientKey ? { "x-device-token": storedClientKey } : {},
-      });
-      if (existing.ok) {
-        const payload = await existing.json();
-        window.localStorage.setItem(STORAGE_KEY, payload.id);
-        window.localStorage.setItem(DEVICE_NAME_STORAGE, payload.name);
-        window.localStorage.setItem(DEVICE_RECORD_STORAGE, JSON.stringify({
-          id: payload.id,
-          name: payload.name,
-          clientKey: storedClientKey,
-        }));
-        setDevice(payload);
-        return;
-      }
-    }
-
-    const clientKey = storedClientKey || crypto.randomUUID();
-    const deviceName = storedName || defaultDeviceName();
-
-    const created = await fetch("/api/devices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: deviceName, clientKey }),
-    });
-
-    if (!created.ok) return;
-    const payload = await created.json();
-    window.localStorage.setItem(CLIENT_KEY_STORAGE, clientKey);
-    window.localStorage.setItem(STORAGE_KEY, payload.id);
-    window.localStorage.setItem(DEVICE_NAME_STORAGE, payload.name);
-    window.localStorage.setItem(DEVICE_RECORD_STORAGE, JSON.stringify({
-      id: payload.id,
-      name: payload.name,
-      clientKey,
-    }));
-    setDevice(payload);
-  }
 
   async function loadModels() {
     try {
@@ -323,6 +271,53 @@ export default function DevicePage() {
   async function loadFloors() {
     const res = await fetch("/api/floors", { cache: "no-store" });
     if (res.ok) setFloors(await res.json());
+  }
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoginSubmitting(true);
+    setLoginError("");
+
+    const res = await fetch("/api/device-auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: loginUsername, password: loginPassword }),
+    });
+
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({ error: "Device login failed" }));
+      setLoginError(payload.error || "Device login failed");
+      setLoginSubmitting(false);
+      return;
+    }
+
+    const payload = await res.json();
+    setDeviceAuthToken(payload.token);
+    setDeviceAccount(payload.account);
+    setDevice(payload.device);
+    setDeviceAuthenticated(true);
+    setLoginPassword("");
+    setLoginSubmitting(false);
+    void loadModels();
+    void loadFloors();
+  }
+
+  async function logoutDevice() {
+    const stream = videoRef.current?.srcObject;
+    if (stream instanceof MediaStream) {
+      stream.getTracks().forEach((track) => track.stop());
+      if (videoRef.current) videoRef.current.srcObject = null;
+    }
+
+    await deviceFetch("/api/device-auth/logout", { method: "POST" });
+    clearDeviceAuthToken();
+    setDeviceAuthenticated(false);
+    setDeviceAccount(null);
+    setDevice(null);
+    setStreamActive(false);
+    setRecognized([]);
+    setAlertBanner(null);
+    setLoginPassword("");
   }
 
   async function startStreaming() {
@@ -403,149 +398,201 @@ export default function DevicePage() {
     return canvas.toDataURL("image/jpeg", 0.72);
   }
 
-  const roomLabelMap = useMemo(
-    () =>
-      new Map(
-        floors.flatMap((floor) =>
-          floor.rooms.map((room) => [room.id, `${room.name} (${floor.name})`] as const)
-        )
-      ),
-    [floors]
-  );
-
-  const assignedRoomLabel = useMemo(() => {
-    if (!device?.assignedRoomId) return "Waiting for security assignment";
-    return roomLabelMap.get(device.assignedRoomId) ?? device.assignedRoomId;
-  }, [device?.assignedRoomId, roomLabelMap]);
-
-  return (
-    !authReady ? (
+  if (!authChecked) {
+    return (
       <main className="ross-shell ross-login-shell">
         <section className="ross-login-card ross-card">
           <div className="ross-loading-state">
             <LoadingSpinner />
-            <h1>Checking Admin Access</h1>
-            <p className="ross-hint">Validating your security officer token.</p>
+            <h1>Checking Device Access</h1>
+            <p className="ross-hint">Validating the paired device login.</p>
           </div>
         </section>
       </main>
-    ) : (
-      <main className="ross-shell">
-        <header className="ross-top-bar">
-          <div className="ross-top-bar-left">
-            <div className="ross-top-back-row">
-              <Link href="/admin" className="ross-link-btn ross-top-back-btn">
-                {"<- Back To Admin"}
-              </Link>
-            </div>
-            <h1>CougPulse Device Client</h1>
-            <p>This phone or laptop joins the system as a camera and microphone device.</p>
-          </div>
-          <div className="ross-top-actions">
-            <span className="ross-status-pill">{device?.name ?? "Connecting device"}</span>
-            <Link href="/" className="ross-btn ross-btn-primary">
-              Student Heatmap
+    );
+  }
+
+  if (!deviceAuthenticated) {
+    return (
+      <main className="ross-shell ross-login-shell">
+        <section className="ross-login-card ross-card">
+          <div className="ross-top-back-row">
+            <Link href="/" className="ross-link-btn ross-top-back-btn">
+              {"<- Back To Home Page"}
             </Link>
           </div>
-        </header>
 
-        <section className="ross-device-shell">
-          <section className="ross-card ross-device-main">
+          <div>
+            <h1>Device Login</h1>
+            <p className="ross-hint">Sign in with a device account created by security. This pairing stays logged in until the device is logged out directly.</p>
+          </div>
+
+          <form className="ross-stack" onSubmit={handleLogin}>
+            <div className="ross-field-group">
+              <label htmlFor="device-username">Device username</label>
+              <input
+                id="device-username"
+                value={loginUsername}
+                onChange={(event) => setLoginUsername(event.target.value)}
+                className="ross-text-input"
+                autoComplete="username"
+                placeholder={defaultDeviceName()}
+              />
+            </div>
+
+            <div className="ross-field-group">
+              <label htmlFor="device-password">Password</label>
+              <input
+                id="device-password"
+                type="password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                className="ross-text-input"
+                autoComplete="current-password"
+              />
+            </div>
+
+            {loginError ? <div className="ross-login-error">{loginError}</div> : null}
+
+            <button className="ross-btn ross-btn-primary" type="submit" disabled={loginSubmitting || !loginUsername.trim() || loginPassword.length < 4}>
+              <span className="ross-btn-content">
+                {loginSubmitting ? (
+                  <>
+                    <LoadingSpinner className="ross-spinner-sm" />
+                    Signing In...
+                  </>
+                ) : (
+                  "Sign In Device"
+                )}
+              </span>
+            </button>
+          </form>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="ross-shell">
+      <header className="ross-top-bar">
+        <div className="ross-top-bar-left">
+          <div className="ross-top-back-row">
+            <Link href="/" className="ross-link-btn ross-top-back-btn">
+              {"<- Back To Home Page"}
+            </Link>
+          </div>
+          <h1>CougPulse Device Client</h1>
+          <p>This phone or laptop joins the system as a camera and microphone device.</p>
+        </div>
+        <div className="ross-top-actions">
+          <span className="ross-status-pill">{deviceAccount?.username ?? device?.name ?? "Device"}</span>
+          <button className="ross-btn" type="button" onClick={logoutDevice}>
+            Log Out Device
+          </button>
+          <Link href="/" className="ross-btn ross-btn-primary">
+            Student Heatmap
+          </Link>
+        </div>
+      </header>
+
+      <section className="ross-device-shell">
+        <section className="ross-card ross-device-main">
+          <div className="ross-card-head">
+            <div>
+              <h2>Live Camera Feed</h2>
+              <p className="ross-hint">Recognition runs here and sends room-aware alerts back to the security console.</p>
+            </div>
+            {!streamActive && (
+              <button className="ross-btn ross-btn-primary" disabled={!modelsLoaded || !device} onClick={startStreaming}>
+                <span className="ross-btn-content">
+                  {!modelsLoaded ? (
+                    <>
+                      <LoadingSpinner className="ross-spinner-sm" />
+                      Loading Models
+                    </>
+                  ) : (
+                    "Start Device Stream"
+                  )}
+                </span>
+              </button>
+            )}
+          </div>
+
+          <div className="ross-video-shell ross-device-video">
+            <video ref={videoRef} autoPlay playsInline muted className="ross-video-feed" />
+            <canvas ref={canvasRef} className="ross-video-overlay" />
+            {!streamActive && <div className="ross-video-empty">Start the device stream after security opens and assigns this client.</div>}
+          </div>
+
+          <div className="ross-stack">
+            <div className="ross-meter-row">
+              <span>{reportingEnabled ? "Audio Feed" : "Audio Waiting"}</span>
+              <span>{Math.round((audioLevel / 128) * 100)}%</span>
+            </div>
+            <div className="ross-meter-track">
+              <div className="ross-meter-fill" style={{ width: `${Math.min(100, (audioLevel / 128) * 100)}%` }} />
+            </div>
+            {!reportingEnabled && (
+              <div className="ross-device-warning">
+                This device is connected, but it will not report noise levels or trigger alerts until security assigns it to a room.
+              </div>
+            )}
+            {alertBanner && (
+              <div className="ross-device-alert">
+                <strong>Flagged Person Detected:</strong> {alertBanner}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <aside className="ross-panel">
+          <section className="ross-card">
             <div className="ross-card-head">
               <div>
-                <h2>Live Camera Feed</h2>
-                <p className="ross-hint">Recognition runs here and sends room-aware alerts back to the security console.</p>
+                <h2>Device Status</h2>
+                <p className="ross-hint">This browser acts as one camera and microphone client.</p>
               </div>
-              {!streamActive && (
-                <button className="ross-btn ross-btn-primary" disabled={!modelsLoaded || !device} onClick={startStreaming}>
-                  <span className="ross-btn-content">
-                    {!modelsLoaded ? (
-                      <>
-                        <LoadingSpinner className="ross-spinner-sm" />
-                        Loading Models
-                      </>
-                    ) : (
-                      "Start Device Stream"
-                    )}
-                  </span>
-                </button>
-              )}
             </div>
-
-            <div className="ross-video-shell ross-device-video">
-              <video ref={videoRef} autoPlay playsInline muted className="ross-video-feed" />
-              <canvas ref={canvasRef} className="ross-video-overlay" />
-              {!streamActive && <div className="ross-video-empty">Start the device stream after security opens and assigns this client.</div>}
-            </div>
-
-            <div className="ross-stack">
-              <div className="ross-meter-row">
-                <span>{reportingEnabled ? "Audio Feed" : "Audio Waiting"}</span>
-                <span>{Math.round((audioLevel / 128) * 100)}%</span>
-              </div>
-              <div className="ross-meter-track">
-                <div className="ross-meter-fill" style={{ width: `${Math.min(100, (audioLevel / 128) * 100)}%` }} />
-              </div>
-              {!reportingEnabled && (
-                <div className="ross-device-warning">
-                  This device is connected, but it will not report noise levels or trigger alerts until security assigns it to a room.
-                </div>
-              )}
-              {alertBanner && (
-                <div className="ross-device-alert">
-                  <strong>Flagged Person Detected:</strong> {alertBanner}
-                </div>
-              )}
+            <div className="ross-data-grid">
+              <div>Device Name</div>
+              <div>{device?.name ?? "Connecting..."}</div>
+              <div>Device Account</div>
+              <div>{deviceAccount?.username ?? "Unpaired"}</div>
+              <div>Assigned Room</div>
+              <div>{assignedRoomLabel}</div>
+              <div>Reporting Status</div>
+              <div>{reportingEnabled ? "Reporting enabled" : "Waiting for room assignment"}</div>
+              <div>Last Heartbeat</div>
+              <div>{device?.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "Waiting for first heartbeat"}</div>
             </div>
           </section>
 
-          <aside className="ross-panel">
-            <section className="ross-card">
-              <div className="ross-card-head">
-                <div>
-                  <h2>Device Status</h2>
-                  <p className="ross-hint">This browser acts as one camera and microphone client.</p>
+          <section className="ross-card">
+            <div className="ross-card-head">
+              <div>
+                <h2>Recognized Faces</h2>
+                <p className="ross-hint">Current detections from this device feed.</p>
+              </div>
+            </div>
+            <div className="ross-list ross-device-recognition-list">
+              {recognized.length === 0 ? (
+                <div className="ross-empty">
+                  {reportingEnabled ? "No faces detected yet." : "Recognition is paused until this device is assigned to a room."}
                 </div>
-              </div>
-              <div className="ross-data-grid">
-                <div>Device Name</div>
-                <div>{device?.name ?? "Connecting..."}</div>
-                <div>Assigned Room</div>
-                <div>{assignedRoomLabel}</div>
-                <div>Reporting Status</div>
-                <div>{reportingEnabled ? "Reporting enabled" : "Waiting for room assignment"}</div>
-                <div>Last Heartbeat</div>
-                <div>{device?.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "Waiting for first heartbeat"}</div>
-              </div>
-            </section>
-
-            <section className="ross-card">
-              <div className="ross-card-head">
-                <div>
-                  <h2>Recognized Faces</h2>
-                  <p className="ross-hint">Current detections from this device feed.</p>
-                </div>
-              </div>
-              <div className="ross-list ross-device-recognition-list">
-                {recognized.length === 0 ? (
-                  <div className="ross-empty">
-                    {reportingEnabled ? "No faces detected yet." : "Recognition is paused until this device is assigned to a room."}
+              ) : (
+                recognized.map((item) => (
+                  <div key={item.key} className="ross-item ross-device-recognition-item">
+                    <strong>{item.label}</strong>
+                    <span className={`ross-status-chip ${item.isTroublemaker ? "alert" : "online"}`}>
+                      {item.isTroublemaker ? "Troublemaker" : "Recognized"}
+                    </span>
                   </div>
-                ) : (
-                  recognized.map((item) => (
-                    <div key={item.key} className="ross-item ross-device-recognition-item">
-                      <strong>{item.label}</strong>
-                      <span className={`ross-status-chip ${item.isTroublemaker ? "alert" : "online"}`}>
-                        {item.isTroublemaker ? "Troublemaker" : "Recognized"}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          </aside>
-        </section>
-      </main>
-    )
+                ))
+              )}
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
   );
 }

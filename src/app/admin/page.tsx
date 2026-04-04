@@ -52,6 +52,16 @@ type AdminOfficer = {
   updatedAt: string;
 };
 
+type DeviceAccount = {
+  id: string;
+  username: string;
+  createdAt: string;
+  updatedAt: string;
+  deviceId: string | null;
+  assignedRoomId: string | null;
+  activeSession: boolean;
+};
+
 const CALIB_STEPS = [
   "Look straight ahead",
   "Turn left slowly",
@@ -84,6 +94,7 @@ export default function AdminPage() {
   const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
   const [floors, setFloors] = useState<LayoutFloor[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminOfficer[]>([]);
+  const [deviceAccounts, setDeviceAccounts] = useState<DeviceAccount[]>([]);
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -106,9 +117,13 @@ export default function AdminPage() {
   const [newOfficerUsername, setNewOfficerUsername] = useState("");
   const [newOfficerPassword, setNewOfficerPassword] = useState("");
   const [newOfficerPasswordConfirm, setNewOfficerPasswordConfirm] = useState("");
+  const [newDeviceAccountUsername, setNewDeviceAccountUsername] = useState("");
+  const [newDeviceAccountPassword, setNewDeviceAccountPassword] = useState("");
+  const [newDeviceAccountPasswordConfirm, setNewDeviceAccountPasswordConfirm] = useState("");
   const [savingDevice, setSavingDevice] = useState(false);
   const [clearingAlerts, setClearingAlerts] = useState(false);
   const [creatingOfficer, setCreatingOfficer] = useState(false);
+  const [creatingDeviceAccount, setCreatingDeviceAccount] = useState(false);
   const lastDraftDeviceIdRef = useRef<string | null>(null);
 
   const roomOptions = useMemo(
@@ -140,7 +155,7 @@ export default function AdminPage() {
 
       setAuthReady(true);
       loadModels();
-      await Promise.all([refreshAll(), loadAdminUsers(), loadCurrentAdmin()]);
+      await Promise.all([refreshAll(), loadAdminUsers(), loadDeviceAccounts(), loadCurrentAdmin()]);
       interval = window.setInterval(refreshAll, SECURITY_REFRESH_MS);
     }
 
@@ -335,6 +350,11 @@ export default function AdminPage() {
     setCurrentAdminId(payload.id);
   }
 
+  async function loadDeviceAccounts() {
+    const res = await adminFetch("/api/device-accounts", { cache: "no-store" });
+    if (res.ok) setDeviceAccounts(await res.json());
+  }
+
   async function clearAllAlerts() {
     setClearingAlerts(true);
     const res = await adminFetch("/api/alerts", { method: "PATCH" });
@@ -495,6 +515,37 @@ export default function AdminPage() {
     toast.success("Security officer added");
   }
 
+  async function createDeviceAccount() {
+    if (newDeviceAccountPassword !== newDeviceAccountPasswordConfirm) {
+      toast.error("Device account passwords do not match");
+      return;
+    }
+
+    setCreatingDeviceAccount(true);
+    const res = await adminFetch("/api/device-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: newDeviceAccountUsername,
+        password: newDeviceAccountPassword,
+      }),
+    });
+
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({ error: "Could not create device account" }));
+      setCreatingDeviceAccount(false);
+      toast.error(payload.error || "Could not create device account");
+      return;
+    }
+
+    setNewDeviceAccountUsername("");
+    setNewDeviceAccountPassword("");
+    setNewDeviceAccountPasswordConfirm("");
+    await loadDeviceAccounts();
+    setCreatingDeviceAccount(false);
+    toast.success("Device account added");
+  }
+
   const selectedDevice = useMemo(() => devices.find((device) => device.id === selectedDeviceId) ?? null, [devices, selectedDeviceId]);
 
   const groupedSubjects = useMemo(() => {
@@ -652,7 +703,7 @@ export default function AdminPage() {
             <div className="ross-card-head">
               <div>
                 <h2>Devices</h2>
-                <p className="ross-hint">Approve, rename, and assign connected clients one at a time.</p>
+                <p className="ross-hint">Approve, rename, assign connected clients, and pair them through device-specific accounts.</p>
               </div>
             </div>
 
@@ -732,6 +783,65 @@ export default function AdminPage() {
                 ) : (
                   <div className="ross-empty">No devices have connected yet.</div>
                 )}
+              </div>
+            </div>
+          </section>
+
+          <section className="ross-card">
+            <div className="ross-card-head">
+              <div>
+                <h2>Device Accounts</h2>
+                <p className="ross-hint">Create separate device logins so cameras stay paired even if officer passwords change.</p>
+              </div>
+              <span className="ross-tool-pill">{deviceAccounts.length}</span>
+            </div>
+
+            <div className="ross-stack">
+              <div className="ross-officer-form">
+                <input
+                  value={newDeviceAccountUsername}
+                  onChange={(event) => setNewDeviceAccountUsername(event.target.value)}
+                  className="ross-text-input"
+                  placeholder="New device username"
+                />
+                <input
+                  value={newDeviceAccountPassword}
+                  onChange={(event) => setNewDeviceAccountPassword(event.target.value)}
+                  type="password"
+                  className="ross-text-input"
+                  placeholder="Device password"
+                />
+                <input
+                  value={newDeviceAccountPasswordConfirm}
+                  onChange={(event) => setNewDeviceAccountPasswordConfirm(event.target.value)}
+                  type="password"
+                  className="ross-text-input"
+                  placeholder="Confirm device password"
+                />
+                <button
+                  className="ross-btn ross-btn-primary"
+                  type="button"
+                  onClick={createDeviceAccount}
+                  disabled={creatingDeviceAccount || !newDeviceAccountUsername.trim() || newDeviceAccountPassword.length < 4 || newDeviceAccountPasswordConfirm.length < 4}
+                >
+                  <span className="ross-btn-content">
+                    {creatingDeviceAccount ? (
+                      <>
+                        <LoadingSpinner className="ross-spinner-sm" />
+                        Adding Device...
+                      </>
+                    ) : (
+                      "Add Device Account"
+                    )}
+                  </span>
+                </button>
+              </div>
+
+              <div className="ross-list ross-panel-scroll">
+                {deviceAccounts.length === 0 && <div className="ross-empty">No device accounts created yet.</div>}
+                {deviceAccounts.map((account) => (
+                  <DeviceAccountCard key={account.id} account={account} roomLabelMap={roomLabelMap} onSaved={loadDeviceAccounts} />
+                ))}
               </div>
             </div>
           </section>
@@ -942,6 +1052,204 @@ export default function AdminPage() {
         </aside>
       </section>
     </main>
+  );
+}
+
+function DeviceAccountCard({
+  account,
+  roomLabelMap,
+  onSaved,
+}: {
+  account: DeviceAccount;
+  roomLabelMap: Map<string, string>;
+  onSaved: () => Promise<void>;
+}) {
+  const [username, setUsername] = useState(account.username);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const lastAccountIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const changedAccount = lastAccountIdRef.current !== account.id;
+    if (changedAccount || !dirty) {
+      setUsername(account.username);
+      setNewPassword("");
+      setConfirmPassword("");
+      setDirty(false);
+      lastAccountIdRef.current = account.id;
+    }
+  }, [account, dirty]);
+
+  return (
+    <div className="ross-item ross-subject-card">
+      <div className="ross-item-head">
+        <div>
+          <div className="font-semibold">{account.username}</div>
+          <div className="ross-item-subtle">Created {new Date(account.createdAt).toLocaleDateString()}</div>
+        </div>
+        <span className={`ross-status-chip ${account.activeSession ? "online" : "offline"}`}>
+          {account.activeSession ? "Logged In" : "Logged Out"}
+        </span>
+      </div>
+
+      <div className="ross-data-grid">
+        <div>Paired device</div>
+        <div>{account.deviceId ?? "Not paired yet"}</div>
+        <div>Assigned room</div>
+        <div>{account.assignedRoomId ? roomLabelMap.get(account.assignedRoomId) ?? account.assignedRoomId : "Unassigned"}</div>
+      </div>
+
+      <input
+        value={username}
+        onChange={(event) => {
+          setUsername(event.target.value);
+          setDirty(true);
+        }}
+        className="ross-text-input"
+        placeholder="Device username"
+      />
+      <input
+        value={newPassword}
+        onChange={(event) => {
+          setNewPassword(event.target.value);
+          setDirty(true);
+        }}
+        type="password"
+        className="ross-text-input"
+        placeholder="New password"
+      />
+      <input
+        value={confirmPassword}
+        onChange={(event) => {
+          setConfirmPassword(event.target.value);
+          setDirty(true);
+        }}
+        type="password"
+        className="ross-text-input"
+        placeholder="Confirm new password"
+      />
+
+      <div className="ross-actions">
+        <button
+          className="ross-btn ross-btn-primary"
+          type="button"
+          disabled={saving || !dirty || !username.trim() || (newPassword.length > 0 && (newPassword.length < 4 || confirmPassword.length < 4))}
+          onClick={async () => {
+            if (newPassword !== confirmPassword) {
+              toast.error("Device account passwords do not match");
+              return;
+            }
+
+            setSaving(true);
+            const res = await adminFetch(`/api/device-accounts/${account.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                username,
+                ...(newPassword ? { newPassword } : {}),
+              }),
+            });
+
+            if (!res.ok) {
+              const payload = await res.json().catch(() => ({ error: "Could not update device account" }));
+              setSaving(false);
+              toast.error(payload.error || "Could not update device account");
+              return;
+            }
+
+            await onSaved();
+            setSaving(false);
+            setDirty(false);
+            setNewPassword("");
+            setConfirmPassword("");
+            toast.success(newPassword ? "Device account updated and signed out" : "Device account updated");
+          }}
+        >
+          <span className="ross-btn-content">
+            {saving ? (
+              <>
+                <LoadingSpinner className="ross-spinner-sm" />
+                Saving...
+              </>
+            ) : (
+              "Save Account"
+            )}
+          </span>
+        </button>
+
+        <button
+          className="ross-btn"
+          type="button"
+          disabled={revoking || !account.activeSession}
+          onClick={async () => {
+            setRevoking(true);
+            const res = await adminFetch(`/api/device-accounts/${account.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ revokeToken: true }),
+            });
+            setRevoking(false);
+
+            if (!res.ok) {
+              const payload = await res.json().catch(() => ({ error: "Could not revoke device session" }));
+              toast.error(payload.error || "Could not revoke device session");
+              return;
+            }
+
+            await onSaved();
+            toast.success("Device session revoked");
+          }}
+        >
+          <span className="ross-btn-content">
+            {revoking ? (
+              <>
+                <LoadingSpinner className="ross-spinner-sm" />
+                Revoking...
+              </>
+            ) : (
+              "Revoke Session"
+            )}
+          </span>
+        </button>
+
+        <button
+          className="ross-btn ross-btn-danger"
+          type="button"
+          disabled={deleting}
+          onClick={async () => {
+            setDeleting(true);
+            const res = await adminFetch(`/api/device-accounts/${account.id}`, {
+              method: "DELETE",
+            });
+            setDeleting(false);
+
+            if (!res.ok) {
+              const payload = await res.json().catch(() => ({ error: "Could not delete device account" }));
+              toast.error(payload.error || "Could not delete device account");
+              return;
+            }
+
+            await onSaved();
+            toast.success("Device account deleted");
+          }}
+        >
+          <span className="ross-btn-content">
+            {deleting ? (
+              <>
+                <LoadingSpinner className="ross-spinner-sm" />
+                Deleting...
+              </>
+            ) : (
+              "Delete Account"
+            )}
+          </span>
+        </button>
+      </div>
+    </div>
   );
 }
 

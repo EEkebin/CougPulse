@@ -109,6 +109,9 @@ export default function MapPage() {
           <Link href="/login?next=/admin" className="ross-link-btn">
             Admin Panel
           </Link>
+          <Link href="/device" className="ross-btn ross-btn-primary">
+            Device Login
+          </Link>
           <div className="ross-status-pill">
             {currentFloor?.name ?? "No Floor"} · {liveRooms.length} Live Rooms
           </div>
