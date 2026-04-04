@@ -1,28 +1,20 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-model RoomReading {
-  id         String   @id @default(cuid())
-  roomNumber String   @unique
-  dbLevel    Float    @default(-60)
-  occupants  String[]
-  updatedAt  DateTime @updatedAt
+model Subject {
+  id        String   @id @default(cuid())
+  data      Bytes    // AES-256-GCM encrypted JSON: { name, descriptor }
+  iv        Bytes
+  createdAt DateTime @default(now())
 }
 
-model Face {
-  id                 String   @id @default(cuid())
-  name               String
-  descriptorEncrypted String  // AES-256-GCM encrypted JSON of float[128]
-  createdAt          DateTime @default(now())
+model RoomReading {
+  id         String   @id  // matches Room.id from src/lib/rooms.ts
+  audioLevel Float    @default(0)
+  updatedAt  DateTime @updatedAt
 }

@@ -1,32 +1,21 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
+import crypto from 'crypto'
 
-const ALGORITHM = "aes-256-gcm";
-const KEY = Buffer.from(
-  process.env.ENCRYPTION_KEY ?? "",
-  "hex"
-);
+const KEY = Buffer.from(process.env.ENCRYPTION_KEY!, 'hex')
 
-if (KEY.length !== 32) {
-  throw new Error(
-    "ENCRYPTION_KEY must be a 64-character hex string (32 bytes). Generate one with: openssl rand -hex 32"
-  );
+export function encryptSubject(name: string, descriptor: Float32Array): { data: Buffer; iv: Buffer } {
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', KEY, iv)
+  const plain = Buffer.from(JSON.stringify({ name, descriptor: Array.from(descriptor) }))
+  const ciphertext = Buffer.concat([cipher.update(plain), cipher.final()])
+  return { data: Buffer.concat([ciphertext, cipher.getAuthTag()]), iv }
 }
 
-export function encrypt(data: string): string {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv(ALGORITHM, KEY, iv);
-  const encrypted = Buffer.concat([cipher.update(data, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  // format: iv:tag:ciphertext (all hex)
-  return `${iv.toString("hex")}:${tag.toString("hex")}:${encrypted.toString("hex")}`;
-}
-
-export function decrypt(payload: string): string {
-  const [ivHex, tagHex, dataHex] = payload.split(":");
-  const iv = Buffer.from(ivHex, "hex");
-  const tag = Buffer.from(tagHex, "hex");
-  const data = Buffer.from(dataHex, "hex");
-  const decipher = createDecipheriv(ALGORITHM, KEY, iv);
-  decipher.setAuthTag(tag);
-  return decipher.update(data) + decipher.final("utf8");
+export function decryptSubject(data: Buffer | Uint8Array, iv: Buffer | Uint8Array): { name: string; descriptor: Float32Array } {
+  const d = Buffer.isBuffer(data) ? data : Buffer.from(data)
+  const i = Buffer.isBuffer(iv) ? iv : Buffer.from(iv)
+  const decipher = crypto.createDecipheriv('aes-256-gcm', KEY, i)
+  decipher.setAuthTag(d.subarray(d.length - 16))
+  const plain = Buffer.concat([decipher.update(d.subarray(0, d.length - 16)), decipher.final()])
+  const parsed = JSON.parse(plain.toString('utf8'))
+  return { name: parsed.name, descriptor: new Float32Array(parsed.descriptor) }
 }

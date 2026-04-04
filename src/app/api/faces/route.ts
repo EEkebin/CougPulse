@@ -1,30 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { encrypt } from "@/lib/crypto";
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { encryptSubject, decryptSubject } from '@/lib/crypto'
 
 export async function GET() {
-  const faces = await prisma.face.findMany({
-    orderBy: { createdAt: "desc" },
-    select: { id: true, name: true, createdAt: true },
-  });
-  return NextResponse.json(faces);
+  const subjects = await prisma.subject.findMany({ orderBy: { createdAt: 'asc' } })
+  return NextResponse.json(
+    subjects.map(s => {
+      const { name, descriptor } = decryptSubject(s.data, s.iv)
+      return { id: s.id, name, descriptor: Array.from(descriptor) }
+    })
+  )
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { name, descriptor } = body;
-
-  if (!name || !Array.isArray(descriptor) || descriptor.length !== 128) {
-    return NextResponse.json(
-      { error: "name and a 128-element descriptor array are required" },
-      { status: 400 }
-    );
+  const { name, descriptor } = await req.json()
+  if (!name || !Array.isArray(descriptor)) {
+    return NextResponse.json({ error: 'Missing name or descriptor' }, { status: 400 })
   }
-
-  const descriptorEncrypted = encrypt(JSON.stringify(descriptor));
-  const face = await prisma.face.create({
-    data: { name, descriptorEncrypted },
-    select: { id: true, name: true, createdAt: true },
-  });
-  return NextResponse.json(face, { status: 201 });
+  const encrypted = encryptSubject(name, new Float32Array(descriptor))
+  const subject = await prisma.subject.create({
+    data: { data: encrypted.data, iv: encrypted.iv },
+  })
+  return NextResponse.json({ id: subject.id }, { status: 201 })
 }

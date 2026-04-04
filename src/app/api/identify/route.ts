@@ -1,36 +1,37 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { decrypt } from "@/lib/crypto";
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { decryptSubject } from '@/lib/crypto'
 
-const MATCH_THRESHOLD = 0.55;
-
-function euclideanDistance(a: number[], b: number[]): number {
-  return Math.sqrt(a.reduce((sum, val, i) => sum + (val - b[i]) ** 2, 0));
+function euclideanDistance(a: Float32Array, b: Float32Array): number {
+  let sum = 0
+  for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2
+  return Math.sqrt(sum)
 }
 
-export async function POST(req: NextRequest) {
-  const { descriptor } = await req.json();
+const THRESHOLD = 0.6
 
-  if (!Array.isArray(descriptor) || descriptor.length !== 128) {
-    return NextResponse.json(
-      { error: "descriptor must be a 128-element array" },
-      { status: 400 }
-    );
+export async function POST(req: NextRequest) {
+  const { descriptor } = await req.json()
+  if (!Array.isArray(descriptor)) {
+    return NextResponse.json({ error: 'Missing descriptor' }, { status: 400 })
   }
 
-  const rows = await prisma.face.findMany();
+  const query = new Float32Array(descriptor)
+  const subjects = await prisma.subject.findMany()
 
-  let bestMatch: { name: string; distance: number } | null = null;
+  let best: { id: string; name: string; distance: number } | null = null
 
-  for (const row of rows) {
-    const stored = JSON.parse(decrypt(row.descriptorEncrypted)) as number[];
-    const distance = euclideanDistance(descriptor, stored);
-    if (distance < MATCH_THRESHOLD && (!bestMatch || distance < bestMatch.distance)) {
-      bestMatch = { name: row.name, distance };
+  for (const s of subjects) {
+    const { name, descriptor: stored } = decryptSubject(s.data, s.iv)
+    const distance = euclideanDistance(query, stored)
+    if (!best || distance < best.distance) {
+      best = { id: s.id, name, distance }
     }
   }
 
-  return NextResponse.json(
-    bestMatch ? { name: bestMatch.name } : { name: null }
-  );
+  if (!best || best.distance > THRESHOLD) {
+    return NextResponse.json({ match: null, label: 'UNKNOWN' })
+  }
+
+  return NextResponse.json({ match: best.id, label: best.name, distance: best.distance })
 }

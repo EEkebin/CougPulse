@@ -1,143 +1,32 @@
-export interface RoomDef {
-  number: string;
+// Room definitions — pixel coordinates on the 1386×770 floor plan image.
+// x, y = top-left corner of the room rectangle; w, h = dimensions.
+// Adjust these values if the overlays don't line up perfectly with the map.
+
+export type Room = {
+  id: string;
   name: string;
-  shape:
-    | { type: "rect"; x: number; y: number; w: number; h: number }
-    | { type: "polygon"; points: string };
-  labelX: number;
-  labelY: number;
-  trackable: boolean;
-}
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
 
-export const FLOOR_ROOMS: RoomDef[] = [
-  // ── Left block ──────────────────────────────────────────────────────────
-  {
-    number: "lobby-enrollment",
-    name: "Enrollment Services Lobby",
-    shape: { type: "rect", x: 0, y: 0, w: 400, h: 185 },
-    labelX: 200, labelY: 92,
-    trackable: false,
-  },
-  {
-    number: "102",
-    name: "Tiered Lecture Rm 102",
-    shape: { type: "polygon", points: "50,185 400,185 400,420 0,420" },
-    labelX: 205, labelY: 305,
-    trackable: true,
-  },
-  {
-    number: "101",
-    name: "Room 101",
-    shape: { type: "rect", x: 0, y: 420, w: 400, h: 235 },
-    labelX: 200, labelY: 537,
-    trackable: true,
-  },
-  // ── Capstone center ──────────────────────────────────────────────────────
-  {
-    number: "115A",
-    name: "Capstone Seminar 115A",
-    shape: { type: "rect", x: 400, y: 0, w: 110, h: 90 },
-    labelX: 455, labelY: 45,
-    trackable: true,
-  },
-  {
-    number: "115B",
-    name: "Capstone Seminar 115B",
-    shape: { type: "rect", x: 510, y: 0, w: 110, h: 90 },
-    labelX: 565, labelY: 45,
-    trackable: true,
-  },
-  {
-    number: "115",
-    name: "Capstone Studio 115",
-    shape: { type: "rect", x: 400, y: 90, w: 220, h: 330 },
-    labelX: 510, labelY: 255,
-    trackable: true,
-  },
-  {
-    number: "lobby-main",
-    name: "Main Lobby",
-    shape: { type: "rect", x: 400, y: 420, w: 110, h: 235 },
-    labelX: 455, labelY: 537,
-    trackable: false,
-  },
-  {
-    number: "restrooms",
-    name: "Restrooms",
-    shape: { type: "rect", x: 510, y: 420, w: 110, h: 235 },
-    labelX: 565, labelY: 537,
-    trackable: false,
-  },
-  // ── Storage ──────────────────────────────────────────────────────────────
-  {
-    number: "152",
-    name: "Storage 152",
-    shape: { type: "rect", x: 620, y: 420, w: 175, h: 235 },
-    labelX: 707, labelY: 537,
-    trackable: false,
-  },
-  // ── Classrooms top row ────────────────────────────────────────────────────
-  {
-    number: "151",
-    name: "Classroom 151",
-    shape: { type: "rect", x: 620, y: 260, w: 175, h: 160 },
-    labelX: 707, labelY: 340,
-    trackable: true,
-  },
-  {
-    number: "155",
-    name: "Classroom 155",
-    shape: { type: "rect", x: 795, y: 260, w: 175, h: 160 },
-    labelX: 882, labelY: 340,
-    trackable: true,
-  },
-  {
-    number: "157",
-    name: "Classroom 157",
-    shape: { type: "rect", x: 970, y: 260, w: 175, h: 160 },
-    labelX: 1057, labelY: 340,
-    trackable: true,
-  },
-  // ── Classrooms bottom row ─────────────────────────────────────────────────
-  {
-    number: "156",
-    name: "Classroom 156",
-    shape: { type: "rect", x: 795, y: 420, w: 175, h: 235 },
-    labelX: 882, labelY: 537,
-    trackable: true,
-  },
-  {
-    number: "158",
-    name: "Classroom 158",
-    shape: { type: "rect", x: 970, y: 420, w: 175, h: 235 },
-    labelX: 1057, labelY: 537,
-    trackable: true,
-  },
-  // ── Receiving ─────────────────────────────────────────────────────────────
-  {
-    number: "receiving",
-    name: "Receiving",
-    shape: { type: "rect", x: 1145, y: 260, w: 155, h: 160 },
-    labelX: 1222, labelY: 340,
-    trackable: false,
-  },
+export const MAP_W = 1386;
+export const MAP_H = 770;
+
+export const ROOMS: Room[] = [
+  { id: "enrollment-lobby",  name: "Enrollment Services Lobby", x: 90,   y: 35,  w: 200, h: 155 },
+  { id: "tiered-lecture",    name: "Tiered Lecture Room",        x: 20,   y: 190, w: 275, h: 365 },
+  { id: "room-161",          name: "Room 161",                   x: 20,   y: 555, w: 195, h: 175 },
+  { id: "capstone-studio",   name: "Capstone Studio",            x: 300,  y: 35,  w: 375, h: 380 },
+  { id: "main-lobby",        name: "Main Lobby",                 x: 230,  y: 555, w: 455, h: 175 },
+  { id: "hallway",           name: "Main Hallway",               x: 685,  y: 415, w: 680, h: 140 },
+  { id: "classroom-a",       name: "Classroom A",                x: 685,  y: 35,  w: 155, h: 190 },
+  { id: "classroom-b",       name: "Classroom B",                x: 840,  y: 35,  w: 160, h: 190 },
+  { id: "classroom-c",       name: "Classroom C",                x: 1000, y: 35,  w: 165, h: 190 },
+  { id: "classroom-d",       name: "Classroom D",                x: 1165, y: 35,  w: 195, h: 190 },
+  { id: "classroom-e",       name: "Classroom E",                x: 685,  y: 225, w: 155, h: 190 },
+  { id: "classroom-f",       name: "Classroom F",                x: 840,  y: 225, w: 160, h: 190 },
+  { id: "classroom-g",       name: "Classroom G",                x: 1000, y: 225, w: 165, h: 190 },
+  { id: "restrooms",         name: "Restrooms",                  x: 1165, y: 225, w: 195, h: 190 },
 ];
-
-export const MAP_WIDTH = 1300;
-export const MAP_HEIGHT = 655;
-
-export function dbToStatus(db: number | null) {
-  if (db === null || db < -80) return "none";
-  if (db < -40) return "quiet";
-  if (db < -25) return "moderate";
-  return "loud";
-}
-
-export function statusToFill(status: ReturnType<typeof dbToStatus>) {
-  switch (status) {
-    case "quiet":    return { fill: "#14532d", stroke: "#22c55e", label: "#4ade80" };
-    case "moderate": return { fill: "#713f12", stroke: "#eab308", label: "#fde047" };
-    case "loud":     return { fill: "#7f1d1d", stroke: "#ef4444", label: "#f87171" };
-    default:         return { fill: "#1c1c1c", stroke: "#3f3f3f", label: "#737373" };
-  }
-}
