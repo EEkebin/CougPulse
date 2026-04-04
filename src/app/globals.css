@@ -734,6 +734,59 @@
   background: #6c7380;
 }
 
+.ross-histogram-wrap {
+  height: 150px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: end;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(7, 12, 24, 0.8), rgba(11, 17, 33, 0.9));
+}
+
+.ross-histogram-frame {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+.ross-histogram-y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #a8b4d1;
+  font-size: 0.72rem;
+  text-align: right;
+  padding: 6px 0;
+}
+
+.ross-histogram-bar {
+  flex: 0 0 8px;
+  width: 8px;
+  min-height: 4px;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #67e8f9 0%, #3b82f6 60%, #1d4ed8 100%);
+  opacity: 0.95;
+}
+
+.ross-histogram-bar-empty {
+  background: rgba(148, 163, 184, 0.28);
+  opacity: 0.5;
+}
+
+.ross-histogram-axis {
+  margin-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  color: #a8b4d1;
+  font-size: 0.75rem;
+}
+
 .ross-field-group {
   display: flex;
   flex-direction: column;

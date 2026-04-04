@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import FloorPlanCanvas from "@/components/FloorPlanCanvas";
 import { clampNoise, noiseColorFromValue } from "@/lib/noise";
@@ -15,9 +15,17 @@ type RoomReading = {
   updatedAt: string | null;
 };
 
+type ActivityBucket = {
+  bucketStart: string;
+  avgLevel: number | null;
+  sampleCount: number;
+};
+
 const HEATMAP_POLL_MS = 250;
 const FLOORS_REFRESH_MS = 15000;
 const SVG_SIZE = 1000;
+const ACTIVITY_BUCKET_MS = 60 * 1000;
+const ACTIVITY_WINDOW_MS = 60 * ACTIVITY_BUCKET_MS;
 
 function pointsToSvg(points: LayoutPoint[]) {
   return points.map((point) => `${Math.round(point.x * SVG_SIZE)},${Math.round(point.y * SVG_SIZE)}`).join(" ");
@@ -32,12 +40,55 @@ function timestampText() {
   return `Updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
 }
 
+function minuteBucketStart(ms: number) {
+  return Math.floor(ms / ACTIVITY_BUCKET_MS) * ACTIVITY_BUCKET_MS;
+}
+
+function mergeLiveSampleIntoBuckets(previous: ActivityBucket[], liveAverage: number | null): ActivityBucket[] {
+  const now = Date.now();
+  const cutoff = now - ACTIVITY_WINDOW_MS;
+  const trimmed = previous.filter((bucket) => new Date(bucket.bucketStart).getTime() >= cutoff);
+  const currentBucketStart = new Date(minuteBucketStart(now)).toISOString();
+
+  const next = [...trimmed];
+  const tail = next[next.length - 1];
+
+  if (!tail || tail.bucketStart !== currentBucketStart) {
+    next.push({
+      bucketStart: currentBucketStart,
+      avgLevel: liveAverage == null ? null : liveAverage,
+      sampleCount: liveAverage == null ? 0 : 1,
+    });
+    return next;
+  }
+
+  if (liveAverage == null) return next;
+
+  const count = tail.sampleCount;
+  const nextAvg = tail.avgLevel == null ? liveAverage : (tail.avgLevel * count + liveAverage) / (count + 1);
+  next[next.length - 1] = {
+    ...tail,
+    avgLevel: nextAvg,
+    sampleCount: count + 1,
+  };
+
+  return next;
+}
+
 export default function MapPage() {
+  const histogramRef = useRef<HTMLDivElement>(null);
   const [floors, setFloors] = useState<LayoutFloor[]>([]);
   const [currentFloorId, setCurrentFloorId] = useState<string | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [readings, setReadings] = useState<Map<string, RoomReading>>(new Map());
+  const [activity, setActivity] = useState<ActivityBucket[]>([]);
   const [mapTimestamp, setMapTimestamp] = useState("Waiting for live room updates");
+
+  useEffect(() => {
+    const node = histogramRef.current;
+    if (!node) return;
+    node.scrollLeft = node.scrollWidth;
+  }, [activity.length]);
 
   useEffect(() => {
     let active = true;
@@ -72,14 +123,31 @@ export default function MapPage() {
     async function refreshRooms() {
       try {
         const roomsRes = await fetch("/api/rooms", { cache: "no-store" });
+
         if (!active || !roomsRes.ok) return;
 
         const roomData: RoomReading[] = await roomsRes.json();
         if (!active) return;
         setReadings(new Map(roomData.map((reading) => [reading.id, reading])));
+
+        const activeValues = roomData
+          .filter((reading) => reading.audioLevel != null && (reading.activeDeviceCount ?? 0) > 0)
+          .map((reading) => clampNoise(reading.audioLevel as number));
+
+        const liveAverage = activeValues.length
+          ? activeValues.reduce((sum, value) => sum + value, 0) / activeValues.length
+          : null;
+
+        if (active) {
+          setActivity((previous) => mergeLiveSampleIntoBuckets(previous, liveAverage));
+        }
+
         setMapTimestamp(timestampText());
       } catch {
-        if (active) setMapTimestamp("Waiting for live room updates");
+        if (active) {
+          setActivity((previous) => mergeLiveSampleIntoBuckets(previous, null));
+          setMapTimestamp("Waiting for live room updates");
+        }
       } finally {
         if (active) timeoutId = window.setTimeout(refreshRooms, HEATMAP_POLL_MS);
       }
@@ -238,6 +306,41 @@ export default function MapPage() {
         </section>
 
         <aside className="ross-panel">
+          <section className="ross-card">
+            <h2>Voice Activity (Past Hour)</h2>
+            <div className="ross-histogram-frame">
+              <div className="ross-histogram-y-axis" aria-hidden="true">
+                <span>100%</span>
+                <span>0%</span>
+              </div>
+              <div ref={histogramRef} className="ross-histogram-wrap" role="img" aria-label="Voice activity histogram for the past hour">
+                {activity.length ? (
+                  activity.map((bucket) => {
+                    const value = bucket.avgLevel ?? 0;
+                    const displayValue = Math.round(value);
+                    const height = Math.max(4, Math.round((value / 100) * 100));
+                    const stamp = new Date(bucket.bucketStart).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+                    return (
+                      <div
+                        key={bucket.bucketStart}
+                        className={`ross-histogram-bar${bucket.sampleCount > 0 ? "" : " ross-histogram-bar-empty"}`}
+                        style={{ height: `${height}%` }}
+                        title={`${stamp} - ${bucket.avgLevel != null ? `${displayValue}%` : "No activity"} (${bucket.sampleCount} sample${bucket.sampleCount === 1 ? "" : "s"})`}
+                      />
+                    );
+                  })
+                ) : (
+                  <div className="ross-inspector ross-empty">Collecting minute-by-minute activity.</div>
+                )}
+              </div>
+            </div>
+            <div className="ross-histogram-axis">
+              <span>60 min</span>
+              <span>0 min</span>
+            </div>
+          </section>
+
           <section className="ross-card">
             <h2>Quietest Rooms</h2>
             <div className={`ross-list${liveRooms.length ? "" : " ross-empty"}`}>
