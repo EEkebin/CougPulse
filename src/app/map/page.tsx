@@ -195,6 +195,9 @@ export default function MapPage() {
             floorName={currentFloor?.name}
             placeholderText="No floor plan uploaded for this floor yet."
             svgSize={SVG_SIZE}
+            svgProps={{
+              onClick: () => setSelectedRoomId(null),
+            }}
           >
               {currentFloor?.rooms.map((room) => {
                 const reading = readings.get(room.id);
@@ -204,7 +207,14 @@ export default function MapPage() {
                 const tiny = room.points.length <= 4 && room.points.some((point) => point.x > 0.95);
 
                 return (
-                  <g key={room.id} className="ross-room-group" onClick={() => setSelectedRoomId(room.id)}>
+                  <g
+                    key={room.id}
+                    className="ross-room-group"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedRoomId(room.id);
+                    }}
+                  >
                     <polygon
                       points={pointsToSvg(room.points)}
                       className={`ross-room-shape ${level ? level.className : "ross-room-unassigned"}${selectedRoomId === room.id ? " selected" : ""}`}
