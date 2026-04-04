@@ -1,0 +1,5 @@
+CougPulse
+
+Interviewing stakeholders on campus, including IT and Security, we learned an issue the WSU Everett campus has. The IT department cannot make use of a facial detection feature for identifying security threats because the data is not encrypted at rest, failing to meeet standards.
+
+Our project tackles this problem and additionally improves student experience on campus by offering secure encryption of video/audio data. IT can detect security threats, and students can identify areas on the campus that are their ideal study space. The project works by providing a secure web application for students and IT admins to connect to. Students view a heat map of classroom noise levels, allowing them to find their preferred study room. IT admins hook up a device, which transmits video/audio data securely to a server. IT admins also upload floor plans and create the rooms connected to these sensor devices. IT admins can also add facial recognition mappings of persons to the system, and indicate if they are 'troublemakers'/security risk.

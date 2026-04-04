@@ -1,156 +1,189 @@
 # CougPulse
 
-CougPulse is a campus monitoring platform with two separate experiences:
+CougPulse is a campus monitoring platform with two connected experiences:
 
-- Student heatmap: a live classroom noise map that shows which rooms are currently quietest.
-- Security operations: device management, face enrollment, troublemaker alerts, and floor-plan administration.
+- **Student heatmap**: a live map showing room noise levels.
+- **Security operations**: officer/admin tools for device management, face enrollment, alerting, and layout planning.
 
-## Table Of Contents
+## What’s In This Repo
 
-- [Current Routes](#current-routes)
-- [Core Features](#core-features)
-- [Auth Model](#auth-model)
-- [Admin / Security Officers](#admin--security-officers)
-- [Device Clients](#device-clients)
-- [Data Security](#data-security)
-- [Tech Stack](#tech-stack)
-- [Local Development](#local-development)
-- [Slides](#slides)
-- [Environment Notes](#environment-notes)
-- [Typical Flow](#typical-flow)
-- [API Docs](#api-docs)
+- Next.js App Router frontend + API routes (`src/app`)
+- Prisma + PostgreSQL persistence (`prisma/schema.prisma`)
+- Face recognition model assets in `public/models`
+- Scalar-powered API docs at `/api/docs`
+- Marp presentation source in `slides/presentation.md`
 
-## Current Routes
+## Current App Routes
 
-- `/` or `/map`: student heatmap
-- `/login`: admin/security officer login
-- `/admin`: security console
-- `/admin/layout`: floor and room layout planner
-- `/device`: device login and live camera/microphone client
-- `/api/docs`: Scalar API reference backed by the generated OpenAPI document
+- `/` or `/map` — student heatmap
+- `/login` — admin/security officer login
+- `/admin` — security console (faces, alerts, devices, users, device accounts)
+- `/admin/layout` — floor-plan and room editor
+- `/device` — device client login + camera/mic reporting
+- `/api/docs` — Scalar API reference
+- `/api/openapi.json` — OpenAPI document
 
 ## Core Features
 
-- Live room-noise heatmap driven by assigned devices
+- Live noise heatmap sourced from room-level device readings
+- Device heartbeat endpoint with audio level + preview image updates
+- Face enrollment and matching (`/api/identify`) using `face-api.js` descriptors
+- Troublemaker flag workflow with persistent security alerts
+- Floor/room authoring with polygon room geometry
 - Separate admin and device authentication flows
-- Device accounts that stay paired independently of officer password changes
-- Face enrollment with troublemaker flags and notes
-- Persistent security alerts with face snapshots
-- Floor creation, floor-plan upload, and room drawing in the layout planner
-- Encrypted-at-rest sensitive operational data, plus Argon2 password hashing
-
-## Auth Model
-
-### Admin / Security Officers
-
-- Log in at `/login`
-- Auth token is stored in browser `localStorage`
-- Protected admin requests use the `x-admin-token` header
-- Default bootstrap credentials on a fresh database:
-  - username: `admin`
-  - password: `password`
-
-### Device Clients
-
-- Log in at `/device`
-- Devices use their own device-account credentials created from `/admin`
-- Device requests use the `x-device-token` header
-- Device sessions are intentionally persistent until explicitly revoked or logged out
-
-## Data Security
-
-- Admin and device passwords are hashed with Argon2
-- Face enrollment payloads are encrypted at rest
-- Alert payloads, device previews, device names, and sensitive notes are encrypted at rest
-- Room/floor metadata and floor-plan layout data are not encrypted, because the app needs to query and render them directly
+- Encrypted-at-rest sensitive fields and Argon2 password hashing
 
 ## Tech Stack
 
-- Next.js App Router
-- Prisma + PostgreSQL
-- Scalar for API documentation
-- Tailwind CSS
-- face-api.js for browser-side facial recognition
+- Next.js `16` + React `19`
+- TypeScript
+- Prisma `7` with PostgreSQL (`@prisma/adapter-pg` + `pg`)
+- Tailwind CSS `4`
+- `face-api.js`
+- Scalar (`@scalar/nextjs-api-reference`)
+- Marp CLI (slides)
 
-## Local Development
+## Prerequisites
 
-Install dependencies:
+- Node.js `20+`
+- npm `10+`
+- PostgreSQL `15+` (local or containerized)
+
+## Quick Start
+
+### 1) Install dependencies
 
 ```bash
 npm install
 ```
 
-Apply the schema and start the app:
+### 2) Start PostgreSQL (Docker option)
+
+```bash
+docker compose up -d
+```
+
+The included `compose.yaml` provisions:
+
+- database: `cougpulse`
+- user: `cougpulse`
+- password: `cougpulse`
+- port: `5432`
+
+### 3) Create `.env`
+
+Create `.env` at the repo root:
+
+```env
+DATABASE_URL="postgresql://cougpulse:cougpulse@localhost:5432/cougpulse"
+ENCRYPTION_KEY="<64-hex-char-key>"
+```
+
+Generate a key (PowerShell):
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### 4) Apply migrations
 
 ```bash
 npx prisma migrate dev
+```
+
+### 5) Run the app
+
+```bash
 npm run dev
 ```
 
-If you want a full local reset instead:
+The dev server runs on `https://0.0.0.0:3000` (see `package.json`, `--experimental-https`).
+
+## Default Bootstrap Admin
+
+On an empty database, the first admin login attempt auto-creates:
+
+- username: `admin`
+- password: `password`
+
+You should change this immediately from the admin user tools.
+
+## Authentication Model
+
+- **Admin token header**: `x-admin-token`
+- **Device token header**: `x-device-token`
+- Admin token local storage key: `cougpulse_admin_token`
+- Device token local storage key: `cougpulse_device_auth_token`
+
+## API Surface (High Level)
+
+- **Admin auth**: `/api/auth/login`, `/api/auth/me`, `/api/auth/logout`
+- **Device auth**: `/api/device-auth/login`, `/api/device-auth/me`, `/api/device-auth/logout`
+- **Layout & heatmap**: `/api/floors`, `/api/floors/[id]`, `/api/rooms`, `/api/rooms/[id]`, `/api/layout/rooms`
+- **Faces & identify**: `/api/faces`, `/api/faces/[id]`, `/api/identify`
+- **Devices**: `/api/devices`, `/api/devices/[id]`, `/api/devices/[id]/heartbeat`
+- **Accounts & officers**: `/api/device-accounts`, `/api/device-accounts/[id]`, `/api/admin/users`, `/api/admin/users/[id]`
+- **Alerts**: `/api/alerts`, `/api/alerts/[id]`
+
+Interactive docs are available at `/api/docs`.
+
+## Security Notes
+
+- Admin and device passwords are hashed with Argon2id.
+- Subject identity payloads are encrypted with AES-256-GCM.
+- Sensitive fields (alert payloads, device preview/name, and secure notes) are stored encrypted.
+- Login endpoints include in-memory attempt throttling per user/IP key.
+
+## Database & Reset Workflows
+
+Normal iterative workflow:
 
 ```bash
-./scripts/reset-db.sh
+npx prisma migrate dev
+```
+
+Cross-platform hard reset (drops data, reapplies migrations):
+
+```bash
+npx prisma migrate reset --force
+```
+
+Bash-only helper script is available at `scripts/reset-db.sh`.
+
+## Operational Flow
+
+1. Log in at `/login` (admin/security officer).
+2. Create device accounts from `/admin`.
+3. Sign devices in at `/device`.
+4. Assign each paired device to a room.
+5. Build floors/rooms in `/admin/layout`.
+6. Student view (`/`) reflects live room noise.
+7. Enroll faces and flag troublemakers; alerts appear when matched.
+
+## Development Commands
+
+```bash
 npm run dev
+npm run build
+npm run start
+npm run lint
 ```
 
 ## Slides
 
-Presentation slides live in `slides/presentation.md` and use Marp.
-
-Install dependencies if needed:
-
-```bash
-npm install
-```
-
-Preview the deck locally:
+Slides live in `slides/presentation.md`.
 
 ```bash
 npm run slides:dev
-```
-
-Export HTML:
-
-```bash
 npm run slides:html
-```
-
-Export PDF:
-
-```bash
 npm run slides:pdf
 ```
 
-`slides:pdf` requires a local browser such as Chrome, Edge, or Firefox because Marp uses a browser engine to render PDF output.
+`slides:pdf` requires a local browser (Chrome/Edge/Firefox).
 
-## Environment Notes
+## Troubleshooting
 
-The app expects a working PostgreSQL connection and an encryption key in `.env`.
-
-Important variables include:
-
-- `DATABASE_URL`
-- `ENCRYPTION_KEY`
-
-`ENCRYPTION_KEY` should be a 32-byte hex string for AES-256-GCM.
-
-## Typical Flow
-
-1. Log into `/admin` as a security officer.
-2. Create device accounts in the security console.
-3. Open `/device` on phones/laptops and sign in with those device accounts.
-4. Assign each connected device to a room from `/admin`.
-5. Build floors and rooms in `/admin/layout`.
-6. Open `/` to view the live student heatmap.
-7. Enroll faces in `/admin`, flag troublemakers, and review alerts as devices report detections.
-
-## API Docs
-
-Scalar documentation is available at:
-
-- `/api/docs`
-
-Raw OpenAPI JSON is available at:
-
-- `/api/openapi.json`
+- **Camera/mic blocked**: use the HTTPS dev URL and allow browser permissions.
+- **Face models not loading**: confirm files exist under `public/models`.
+- **Database connection errors**: verify `DATABASE_URL` and that PostgreSQL is running.
+- **Encryption errors**: ensure `ENCRYPTION_KEY` is a valid 64-character hex string.
