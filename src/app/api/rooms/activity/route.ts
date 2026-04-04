@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 type ActivityBucket = {
@@ -7,7 +7,16 @@ type ActivityBucket = {
   sampleCount: number;
 };
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const roomId = req.nextUrl.searchParams.get("roomId");
+
+  if (!roomId) {
+    return NextResponse.json({
+      points: [] as ActivityBucket[],
+      generatedAt: new Date().toISOString(),
+    });
+  }
+
   const now = Date.now();
   const bucketMs = 30 * 1000;
   const windowMs = 10 * 60 * 1000;
@@ -19,6 +28,7 @@ export async function GET() {
   const readings = await prisma.roomReading.findMany({
     where: {
       createdAt: { gte: cutoff },
+      roomId,
     },
     select: {
       createdAt: true,
@@ -52,8 +62,10 @@ export async function GET() {
     sampleCount: bucket.sampleCount,
   }));
 
+  const hasSamples = points.some((bucket) => bucket.sampleCount > 0);
+
   return NextResponse.json({
-    points,
+    points: hasSamples ? points : [],
     generatedAt: new Date(now).toISOString(),
   });
 }

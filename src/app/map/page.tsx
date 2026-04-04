@@ -85,9 +85,13 @@ export default function MapPage() {
 
     async function refreshRooms() {
       try {
+        const activityRequest = selectedRoomId
+          ? fetch(`/api/rooms/activity?roomId=${encodeURIComponent(selectedRoomId)}`, { cache: "no-store" })
+          : Promise.resolve<Response | null>(null);
+
         const [roomsRes, activityRes] = await Promise.all([
           fetch("/api/rooms", { cache: "no-store" }),
-          fetch("/api/rooms/activity", { cache: "no-store" }),
+          activityRequest,
         ]);
 
         if (!active || !roomsRes.ok) return;
@@ -96,9 +100,11 @@ export default function MapPage() {
         if (!active) return;
         setReadings(new Map(roomData.map((reading) => [reading.id, reading])));
 
-        if (activityRes.ok) {
+        if (activityRes?.ok) {
           const activityData: { points: ActivityBucket[] } = await activityRes.json();
           if (active) setActivity(activityData.points);
+        } else if (active) {
+          setActivity([]);
         }
 
         setMapTimestamp(timestampText());
@@ -117,7 +123,7 @@ export default function MapPage() {
       active = false;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, []);
+  }, [selectedRoomId]);
 
   const currentFloor = floors.find((floor) => floor.id === currentFloorId) ?? floors[0] ?? null;
 
@@ -266,37 +272,41 @@ export default function MapPage() {
         <aside className="ross-panel">
           <section className="ross-card">
             <h2>Voice Activity (Past Hour)</h2>
-            <div className="ross-histogram-frame">
-              <div className="ross-histogram-y-axis" aria-hidden="true">
-                <span>100%</span>
-                <span>0%</span>
-              </div>
-              <div ref={histogramRef} className="ross-histogram-wrap" role="img" aria-label="Voice activity histogram for the past hour">
-                {activity.length ? (
-                  activity.map((bucket) => {
-                    const value = bucket.avgLevel ?? 0;
-                    const displayValue = Math.round(value);
-                    const height = Math.max(4, Math.round((value / 100) * 100));
-                    const stamp = new Date(bucket.bucketStart).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            {selectedRoomId && activity.length > 0 ? (
+              <>
+                <div className="ross-histogram-frame">
+                  <div className="ross-histogram-y-axis" aria-hidden="true">
+                    <span>100%</span>
+                    <span>0%</span>
+                  </div>
+                  <div ref={histogramRef} className="ross-histogram-wrap" role="img" aria-label="Voice activity histogram for the past hour">
+                    {activity.map((bucket) => {
+                      const value = bucket.avgLevel ?? 0;
+                      const displayValue = Math.round(value);
+                      const height = Math.max(4, Math.round((value / 100) * 100));
+                      const stamp = new Date(bucket.bucketStart).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-                    return (
-                      <div
-                        key={bucket.bucketStart}
-                        className={`ross-histogram-bar${bucket.sampleCount > 0 ? "" : " ross-histogram-bar-empty"}`}
-                        style={{ height: `${height}%` }}
-                        title={`${stamp} - ${bucket.avgLevel != null ? `${displayValue}%` : "No activity"} (${bucket.sampleCount} sample${bucket.sampleCount === 1 ? "" : "s"})`}
-                      />
-                    );
-                  })
-                ) : (
-                  <div className="ross-inspector ross-empty">Collecting minute-by-minute activity.</div>
-                )}
+                      return (
+                        <div
+                          key={bucket.bucketStart}
+                          className={`ross-histogram-bar${bucket.sampleCount > 0 ? "" : " ross-histogram-bar-empty"}`}
+                          style={{ height: `${height}%` }}
+                          title={`${stamp} - ${bucket.avgLevel != null ? `${displayValue}%` : "No activity"} (${bucket.sampleCount} sample${bucket.sampleCount === 1 ? "" : "s"})`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="ross-histogram-axis">
+                  <span>10 min</span>
+                  <span>0 min</span>
+                </div>
+              </>
+            ) : (
+              <div className="ross-inspector ross-empty">
+                {selectedRoomId ? "No voice activity data for the selected room." : "Select a room to view its voice activity histogram."}
               </div>
-            </div>
-            <div className="ross-histogram-axis">
-              <span>10 min</span>
-              <span>0 min</span>
-            </div>
+            )}
           </section>
 
           <section className="ross-card">
