@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { adminFetch } from "@/lib/admin-client";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import FloorPlanCanvas from "@/components/FloorPlanCanvas";
@@ -70,37 +70,9 @@ export default function FloorLayoutEditor({
   const [saving, setSaving] = useState(false);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
 
-  const selectedFloor = useMemo(
-    () => floors.find((floor) => floor.id === selectedFloorId) ?? floors[0] ?? null,
-    [floors, selectedFloorId]
-  );
+  const selectedFloor = useMemo(() => floors.find((floor) => floor.id === selectedFloorId) ?? floors[0] ?? null, [floors, selectedFloorId]);
 
   const selectedRoom = selectedFloor?.rooms.find((room) => room.id === selectedRoomId) ?? null;
-
-  useEffect(() => {
-    if (!selectedFloorId && floors[0]) {
-      setSelectedFloorId(floors[0].id);
-      return;
-    }
-
-    if (selectedFloorId && !floors.some((floor) => floor.id === selectedFloorId)) {
-      setSelectedFloorId(floors[0]?.id ?? null);
-      setSelectedRoomId(null);
-      setRoomNameDraft("");
-    }
-  }, [floors, selectedFloorId]);
-
-  useEffect(() => {
-    if (!selectedRoom) {
-      if (selectedRoomId) {
-        setSelectedRoomId(null);
-        setRoomNameDraft("");
-      }
-      return;
-    }
-
-    setRoomNameDraft(selectedRoom.name);
-  }, [selectedRoom, selectedRoomId]);
 
   function getRelativePoint(event: React.PointerEvent<SVGElement>) {
     const rect = canvasWrapRef.current?.getBoundingClientRect();
@@ -112,7 +84,7 @@ export default function FloorLayoutEditor({
     };
   }
 
-  async function createRoom(points: LayoutPoint[]) {
+  const createRoom = useCallback(async (points: LayoutPoint[]) => {
     if (!selectedFloor) return;
     if (points.length < 3) return;
 
@@ -132,7 +104,7 @@ export default function FloorLayoutEditor({
     setSelectedRoomId(room.id);
     setRoomNameDraft(room.name);
     await onLayoutChange();
-  }
+  }, [onLayoutChange, selectedFloor]);
 
   async function moveRoom(roomId: string, points: LayoutPoint[]) {
     await adminFetch(`/api/layout/rooms/${roomId}`, {
@@ -147,7 +119,7 @@ export default function FloorLayoutEditor({
     return points.map((point) => ({ x: clamp(point.x + dx), y: clamp(point.y + dy) }));
   }
 
-  function cancelDrawingMode() {
+  const cancelDrawingMode = useCallback(() => {
     setDraftRectStart(null);
     setDraftRectCurrent(null);
     setPolygonPoints([]);
@@ -155,15 +127,15 @@ export default function FloorLayoutEditor({
     setDragState(null);
     setDragPreview(null);
     setMode("select");
-  }
+  }, []);
 
-  function finishPolygonShape() {
+  const finishPolygonShape = useCallback(() => {
     if (mode !== "draw-polygon") return;
     if (polygonPoints.length >= 3) void createRoom(polygonPoints);
     setPolygonPoints([]);
     setPolygonHover(null);
     setMode("select");
-  }
+  }, [createRoom, mode, polygonPoints]);
 
   async function saveRoomName() {
     if (!selectedRoomId) return;
@@ -177,7 +149,7 @@ export default function FloorLayoutEditor({
     setSaving(false);
   }
 
-  async function deleteRoom() {
+  const deleteRoom = useCallback(async () => {
     if (!selectedRoomId) return;
     setSaving(true);
     await adminFetch(`/api/layout/rooms/${selectedRoomId}`, { method: "DELETE" });
@@ -185,7 +157,7 @@ export default function FloorLayoutEditor({
     setRoomNameDraft("");
     await onLayoutChange();
     setSaving(false);
-  }
+  }, [onLayoutChange, selectedRoomId]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -197,7 +169,7 @@ export default function FloorLayoutEditor({
         finishPolygonShape();
       }
 
-      if ((event.key === "Delete" || event.key === "Backspace") && mode === "select" && selectedRoomId && !inTextInput) {
+      if ((event.key === "Delete" || event.key === "Backspace") && mode === "select" && selectedRoom && !inTextInput) {
         event.preventDefault();
         void deleteRoom();
       }
@@ -212,7 +184,7 @@ export default function FloorLayoutEditor({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteRoom, finishPolygonShape, mode, polygonPoints, selectedRoomId]);
+  }, [cancelDrawingMode, deleteRoom, finishPolygonShape, mode, selectedRoom]);
 
   async function uploadFloorPlan(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -239,6 +211,25 @@ export default function FloorLayoutEditor({
       setSelectedRoomId(null);
       setRoomNameDraft("");
     }
+    await onLayoutChange();
+    setSaving(false);
+  }
+
+  async function deleteFloor() {
+    if (!selectedFloor) return;
+
+    const confirmed = window.confirm(
+      `Delete ${selectedFloor.name}? This will also delete its ${selectedFloor.rooms.length} room${
+        selectedFloor.rooms.length === 1 ? "" : "s"
+      }.`
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    await adminFetch(`/api/floors/${selectedFloor.id}`, { method: "DELETE" });
+    setSelectedFloorId(null);
+    setSelectedRoomId(null);
+    setRoomNameDraft("");
     await onLayoutChange();
     setSaving(false);
   }
@@ -299,11 +290,16 @@ export default function FloorLayoutEditor({
             <span>Upload Image</span>
           </label>
           {selectedFloor && (
-            <input
-              value={selectedFloor.name}
-              onChange={(event) => void renameFloor(event.target.value)}
-              className="ross-text-input"
-            />
+            <>
+              <input
+                value={selectedFloor.name}
+                onChange={(event) => void renameFloor(event.target.value)}
+                className="ross-text-input"
+              />
+              <button type="button" className="ross-btn ross-btn-danger" onClick={() => void deleteFloor()} disabled={saving}>
+                Delete Floor
+              </button>
+            </>
           )}
           <p className="ross-hint">Upload a floor plan per floor. Rooms are drawn as overlays on top.</p>
         </section>
@@ -329,7 +325,7 @@ export default function FloorLayoutEditor({
                 Stop Drawing
               </button>
             ) : null}
-            {mode === "select" && selectedRoomId ? (
+            {mode === "select" && selectedRoom ? (
               <button type="button" className="ross-btn ross-btn-danger" onClick={() => void deleteRoom()} disabled={saving}>
                 Delete Selected
               </button>

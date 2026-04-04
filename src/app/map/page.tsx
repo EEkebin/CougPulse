@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import FloorPlanCanvas from "@/components/FloorPlanCanvas";
-import { clampNoise, levelFromValue, NOISE_LEVELS } from "@/lib/noise";
+import { clampNoise, noiseColorFromValue } from "@/lib/noise";
 import type { LayoutFloor, LayoutPoint } from "@/lib/layout-types";
 
 type RoomReading = {
@@ -76,28 +76,15 @@ export default function MapPage() {
 
   const currentFloor = floors.find((floor) => floor.id === currentFloorId) ?? floors[0] ?? null;
 
-  useEffect(() => {
-    if (!currentFloor) return;
-    if (!currentFloorId) {
-      setCurrentFloorId(currentFloor.id);
-      return;
-    }
-
-    if (selectedRoomId && !currentFloor.rooms.some((room) => room.id === selectedRoomId)) {
-      setSelectedRoomId(null);
-    }
-  }, [currentFloor, currentFloorId, selectedRoomId]);
-
   const selectedRoom = currentFloor?.rooms.find((room) => room.id === selectedRoomId) ?? null;
   const selectedReading = selectedRoom ? readings.get(selectedRoom.id) : null;
 
-  const liveRooms = useMemo(() => {
-    if (!currentFloor) return [];
-    return currentFloor.rooms
-      .map((room) => ({ room, reading: readings.get(room.id) }))
-      .filter((item) => item.reading?.audioLevel != null && (item.reading?.activeDeviceCount ?? 0) > 0)
-      .sort((a, b) => (a.reading?.audioLevel ?? 0) - (b.reading?.audioLevel ?? 0));
-  }, [currentFloor, readings]);
+  const liveRooms = !currentFloor
+    ? []
+    : currentFloor.rooms
+        .map((room) => ({ room, reading: readings.get(room.id) }))
+        .filter((item) => item.reading?.audioLevel != null && (item.reading?.activeDeviceCount ?? 0) > 0)
+        .sort((a, b) => (a.reading?.audioLevel ?? 0) - (b.reading?.audioLevel ?? 0));
 
   return (
     <main className="ross-shell">
@@ -140,12 +127,12 @@ export default function MapPage() {
           <section className="ross-card">
             <h2>Noise Legend</h2>
             <div className="ross-legend-list">
-              {NOISE_LEVELS.map((level) => (
-                <div key={level.name} className="ross-legend-item">
-                  <span className={`ross-legend-chip ${level.className}`} />
-                  <span>{level.name}</span>
-                </div>
-              ))}
+              <div className="ross-gradient-legend" aria-hidden="true" />
+              <div className="ross-gradient-legend-labels">
+                <span>0% / Green</span>
+                <span>100% / Red</span>
+              </div>
+              <div className="ross-legend-caption">Lower noise stays green. Higher noise shifts toward red.</div>
               <div className="ross-legend-item">
                 <span className="ross-legend-chip ross-room-unassigned-chip" />
                 <span>No device assigned</span>
@@ -202,7 +189,6 @@ export default function MapPage() {
               {currentFloor?.rooms.map((room) => {
                 const reading = readings.get(room.id);
                 const value = reading?.audioLevel != null && (reading.activeDeviceCount ?? 0) > 0 ? clampNoise(reading.audioLevel) : null;
-                const level = value != null ? levelFromValue(value) : null;
                 const center = centroid(room.points);
                 const tiny = room.points.length <= 4 && room.points.some((point) => point.x > 0.95);
 
@@ -217,7 +203,8 @@ export default function MapPage() {
                   >
                     <polygon
                       points={pointsToSvg(room.points)}
-                      className={`ross-room-shape ${level ? level.className : "ross-room-unassigned"}${selectedRoomId === room.id ? " selected" : ""}`}
+                      className={`ross-room-shape ${value == null ? "ross-room-unassigned" : ""}${selectedRoomId === room.id ? " selected" : ""}`}
+                      style={value != null ? { fill: noiseColorFromValue(value) } : undefined}
                     />
                     <text className={`ross-room-label${tiny ? " ross-room-label-tiny" : ""}`} x={center.x * SVG_SIZE} y={(center.y - 0.012) * SVG_SIZE}>
                       {room.name}

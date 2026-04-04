@@ -21,6 +21,13 @@ export function levelFromValue(value: number) {
   return NOISE_LEVELS.find((level) => normalized >= level.range[0] && normalized <= level.range[1]) ?? NOISE_LEVELS[0];
 }
 
+export function noiseColorFromValue(value: number) {
+  const normalized = clampNoise(value);
+  const red = Math.round((normalized / 100) * 220 + 35);
+  const green = Math.round(((100 - normalized) / 100) * 220 + 35);
+  return `rgb(${red} ${green} 0)`;
+}
+
 function hash(input: string) {
   return input.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
 }

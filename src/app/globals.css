@@ -691,6 +691,37 @@
   gap: 8px;
 }
 
+.ross-gradient-legend {
+  position: relative;
+  width: 100%;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ross-gradient-legend::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgb(35 220 0), rgb(255 0 0));
+}
+
+.ross-gradient-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #cbd5ef;
+  font-size: 0.78rem;
+}
+
+.ross-legend-caption {
+  color: #9ea9c6;
+  font-size: 0.8rem;
+}
+
 .ross-legend-chip,
 .ross-check-dot {
   width: 12px;
@@ -848,26 +879,6 @@
 
 .ross-room-unassigned {
   fill: rgba(214, 218, 224, 0.78);
-}
-
-.ross-room-shape.level-green {
-  fill: #f3f3f3;
-}
-
-.ross-room-shape.level-blue {
-  fill: #e6dddd;
-}
-
-.ross-room-shape.level-yellow {
-  fill: #d9bebe;
-}
-
-.ross-room-shape.level-orange {
-  fill: #cd9090;
-}
-
-.ross-room-shape.level-red {
-  fill: #b93a3a;
 }
 
 .ross-list {
@@ -1372,26 +1383,6 @@
 
 .cp-quiet-item small {
   color: #686d75;
-}
-
-.level-green {
-  background: #f3f3f3;
-}
-
-.level-blue {
-  background: #e6dddd;
-}
-
-.level-yellow {
-  background: #d9bebe;
-}
-
-.level-orange {
-  background: #cd9090;
-}
-
-.level-red {
-  background: #b93a3a;
 }
 
 @keyframes rise-in {
