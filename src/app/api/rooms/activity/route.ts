@@ -9,9 +9,9 @@ type ActivityBucket = {
 
 export async function GET() {
   const now = Date.now();
-  const bucketMinutes = 1;
-  const bucketMs = bucketMinutes * 60 * 1000;
-  const bucketCount = 60;
+  const bucketMs = 30 * 1000;
+  const windowMs = 10 * 60 * 1000;
+  const bucketCount = Math.floor(windowMs / bucketMs);
   const endMs = Math.floor(now / bucketMs) * bucketMs;
   const startMs = endMs - (bucketCount - 1) * bucketMs;
   const cutoff = new Date(startMs);
@@ -46,15 +46,7 @@ export async function GET() {
     bucket.sampleCount += 1;
   }
 
-  const firstNonEmptyIndex = buckets.findIndex((bucket) => bucket.sampleCount > 0);
-  if (firstNonEmptyIndex === -1) {
-    return NextResponse.json({
-      points: [] as ActivityBucket[],
-      generatedAt: new Date(now).toISOString(),
-    });
-  }
-
-  const points: ActivityBucket[] = buckets.slice(firstNonEmptyIndex).map((bucket) => ({
+  const points: ActivityBucket[] = buckets.map((bucket) => ({
     bucketStart: bucket.bucketStart,
     avgLevel: bucket.sampleCount > 0 ? Math.round(bucket.sum / bucket.sampleCount) : null,
     sampleCount: bucket.sampleCount,

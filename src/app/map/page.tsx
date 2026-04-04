@@ -24,8 +24,6 @@ type ActivityBucket = {
 const HEATMAP_POLL_MS = 250;
 const FLOORS_REFRESH_MS = 15000;
 const SVG_SIZE = 1000;
-const ACTIVITY_BUCKET_MS = 60 * 1000;
-const ACTIVITY_WINDOW_MS = 60 * ACTIVITY_BUCKET_MS;
 
 function pointsToSvg(points: LayoutPoint[]) {
   return points.map((point) => `${Math.round(point.x * SVG_SIZE)},${Math.round(point.y * SVG_SIZE)}`).join(" ");
@@ -38,41 +36,6 @@ function centroid(points: LayoutPoint[]) {
 
 function timestampText() {
   return `Updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
-}
-
-function minuteBucketStart(ms: number) {
-  return Math.floor(ms / ACTIVITY_BUCKET_MS) * ACTIVITY_BUCKET_MS;
-}
-
-function mergeLiveSampleIntoBuckets(previous: ActivityBucket[], liveAverage: number | null): ActivityBucket[] {
-  const now = Date.now();
-  const cutoff = now - ACTIVITY_WINDOW_MS;
-  const trimmed = previous.filter((bucket) => new Date(bucket.bucketStart).getTime() >= cutoff);
-  const currentBucketStart = new Date(minuteBucketStart(now)).toISOString();
-
-  const next = [...trimmed];
-  const tail = next[next.length - 1];
-
-  if (!tail || tail.bucketStart !== currentBucketStart) {
-    next.push({
-      bucketStart: currentBucketStart,
-      avgLevel: liveAverage == null ? null : liveAverage,
-      sampleCount: liveAverage == null ? 0 : 1,
-    });
-    return next;
-  }
-
-  if (liveAverage == null) return next;
-
-  const count = tail.sampleCount;
-  const nextAvg = tail.avgLevel == null ? liveAverage : (tail.avgLevel * count + liveAverage) / (count + 1);
-  next[next.length - 1] = {
-    ...tail,
-    avgLevel: nextAvg,
-    sampleCount: count + 1,
-  };
-
-  return next;
 }
 
 export default function MapPage() {
@@ -122,7 +85,10 @@ export default function MapPage() {
 
     async function refreshRooms() {
       try {
-        const roomsRes = await fetch("/api/rooms", { cache: "no-store" });
+        const [roomsRes, activityRes] = await Promise.all([
+          fetch("/api/rooms", { cache: "no-store" }),
+          fetch("/api/rooms/activity", { cache: "no-store" }),
+        ]);
 
         if (!active || !roomsRes.ok) return;
 
@@ -130,22 +96,14 @@ export default function MapPage() {
         if (!active) return;
         setReadings(new Map(roomData.map((reading) => [reading.id, reading])));
 
-        const activeValues = roomData
-          .filter((reading) => reading.audioLevel != null && (reading.activeDeviceCount ?? 0) > 0)
-          .map((reading) => clampNoise(reading.audioLevel as number));
-
-        const liveAverage = activeValues.length
-          ? activeValues.reduce((sum, value) => sum + value, 0) / activeValues.length
-          : null;
-
-        if (active) {
-          setActivity((previous) => mergeLiveSampleIntoBuckets(previous, liveAverage));
+        if (activityRes.ok) {
+          const activityData: { points: ActivityBucket[] } = await activityRes.json();
+          if (active) setActivity(activityData.points);
         }
 
         setMapTimestamp(timestampText());
       } catch {
         if (active) {
-          setActivity((previous) => mergeLiveSampleIntoBuckets(previous, null));
           setMapTimestamp("Waiting for live room updates");
         }
       } finally {
@@ -336,7 +294,7 @@ export default function MapPage() {
               </div>
             </div>
             <div className="ross-histogram-axis">
-              <span>60 min</span>
+              <span>10 min</span>
               <span>0 min</span>
             </div>
           </section>
