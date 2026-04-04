@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { adminFetch } from "@/lib/admin-client";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import FloorPlanCanvas from "@/components/FloorPlanCanvas";
 import type { LayoutFloor, LayoutPoint } from "@/lib/layout-types";
 
 const SVG_SIZE = 1000;
@@ -389,19 +390,14 @@ export default function FloorLayoutEditor({
           <div className="ross-tool-pill">Layout Editor</div>
         </div>
 
-        <div className="ross-canvas-wrap ross-editor-canvas" ref={canvasWrapRef}>
-          {selectedFloor?.floorPlanImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={selectedFloor.floorPlanImage} alt={selectedFloor.name} className="ross-floor-image" />
-          ) : (
-            <div className="ross-placeholder">Upload a floor plan to begin creating rooms.</div>
-          )}
-
-          <svg
-            className="ross-overlay-svg"
-            viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
-            preserveAspectRatio="none"
-            onPointerDown={(event) => {
+        <FloorPlanCanvas
+          floorPlanImage={selectedFloor?.floorPlanImage}
+          floorName={selectedFloor?.name}
+          placeholderText="Upload a floor plan to begin creating rooms."
+          svgSize={SVG_SIZE}
+          wrapperRef={canvasWrapRef}
+          svgProps={{
+            onPointerDown: (event) => {
               const point = getRelativePoint(event);
 
               if (mode === "draw-rect") {
@@ -419,8 +415,8 @@ export default function FloorLayoutEditor({
                 setDragState(null);
                 setDragPreview(null);
               }
-            }}
-            onPointerMove={(event) => {
+            },
+            onPointerMove: (event) => {
               const point = getRelativePoint(event);
               if (mode === "select" && dragState) {
                 const dx = point.x - dragState.startPoint.x;
@@ -435,8 +431,8 @@ export default function FloorLayoutEditor({
               if (mode === "draw-polygon") {
                 setPolygonHover(point);
               }
-            }}
-            onPointerUp={() => {
+            },
+            onPointerUp: () => {
               if (mode === "select" && dragState) {
                 const moved = !!dragPreview?.points.some((point, index) => {
                   const original = dragState.originalPoints[index];
@@ -458,13 +454,14 @@ export default function FloorLayoutEditor({
                 setDraftRectCurrent(null);
                 setMode("select");
               }
-            }}
-            onPointerLeave={() => {
+            },
+            onPointerLeave: () => {
               if (mode === "draw-polygon") {
                 setPolygonHover(null);
               }
-            }}
-          >
+            },
+          }}
+        >
             {selectedFloor?.rooms.map((room) => {
               const roomPoints = dragPreview?.roomId === room.id ? dragPreview.points : room.points;
               const center = centroid(roomPoints);
@@ -506,8 +503,7 @@ export default function FloorLayoutEditor({
             {polygonPoints.map((point, index) => (
               <circle key={`${point.x}-${point.y}-${index}`} cx={point.x * SVG_SIZE} cy={point.y * SVG_SIZE} r="6" className="ross-draft-vertex" />
             ))}
-          </svg>
-        </div>
+        </FloorPlanCanvas>
       </section>
 
       <aside className="ross-panel">

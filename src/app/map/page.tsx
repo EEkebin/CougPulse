@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import FloorPlanCanvas from "@/components/FloorPlanCanvas";
 import { clampNoise, levelFromValue, NOISE_LEVELS } from "@/lib/noise";
 import type { LayoutFloor, LayoutPoint } from "@/lib/layout-types";
 
@@ -189,19 +190,12 @@ export default function MapPage() {
           <div className="ross-canvas-tools">
             <div className="ross-tool-pill">{mapTimestamp}</div>
           </div>
-          <div className="ross-canvas-wrap ross-editor-canvas">
-            <svg className="ross-overlay-svg" viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`} preserveAspectRatio="none">
-              {currentFloor?.floorPlanImage ? (
-                <image
-                  href={currentFloor.floorPlanImage}
-                  x="0"
-                  y="0"
-                  width={SVG_SIZE}
-                  height={SVG_SIZE}
-                  preserveAspectRatio="none"
-                />
-              ) : null}
-
+          <FloorPlanCanvas
+            floorPlanImage={currentFloor?.floorPlanImage}
+            floorName={currentFloor?.name}
+            placeholderText="No floor plan uploaded for this floor yet."
+            svgSize={SVG_SIZE}
+          >
               {currentFloor?.rooms.map((room) => {
                 const reading = readings.get(room.id);
                 const value = reading?.audioLevel != null && (reading.activeDeviceCount ?? 0) > 0 ? clampNoise(reading.audioLevel) : null;
@@ -224,12 +218,7 @@ export default function MapPage() {
                   </g>
                 );
               })}
-            </svg>
-
-            {!currentFloor?.floorPlanImage ? (
-              <div className="ross-placeholder">No floor plan uploaded for this floor yet.</div>
-            ) : null}
-          </div>
+          </FloorPlanCanvas>
         </section>
 
         <aside className="ross-panel">
