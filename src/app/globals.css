@@ -851,23 +851,23 @@
 }
 
 .ross-room-shape.level-green {
-  fill: color-mix(in srgb, #3ccf75 76%, #e6ebef 24%);
+  fill: #f3f3f3;
 }
 
 .ross-room-shape.level-blue {
-  fill: color-mix(in srgb, #2f80ed 76%, #e6ebef 24%);
+  fill: #e6dddd;
 }
 
 .ross-room-shape.level-yellow {
-  fill: color-mix(in srgb, #ffd24a 76%, #e6ebef 24%);
+  fill: #d9bebe;
 }
 
 .ross-room-shape.level-orange {
-  fill: color-mix(in srgb, #ff9f43 76%, #e6ebef 24%);
+  fill: #cd9090;
 }
 
 .ross-room-shape.level-red {
-  fill: color-mix(in srgb, #eb5757 76%, #e6ebef 24%);
+  fill: #b93a3a;
 }
 
 .ross-list {
@@ -1375,23 +1375,23 @@
 }
 
 .level-green {
-  background: color-mix(in srgb, #3ccf75 76%, #e6ebef 24%);
+  background: #f3f3f3;
 }
 
 .level-blue {
-  background: color-mix(in srgb, #2f80ed 76%, #e6ebef 24%);
+  background: #e6dddd;
 }
 
 .level-yellow {
-  background: color-mix(in srgb, #ffd24a 76%, #e6ebef 24%);
+  background: #d9bebe;
 }
 
 .level-orange {
-  background: color-mix(in srgb, #ff9f43 76%, #e6ebef 24%);
+  background: #cd9090;
 }
 
 .level-red {
-  background: color-mix(in srgb, #eb5757 76%, #e6ebef 24%);
+  background: #b93a3a;
 }
 
 @keyframes rise-in {
