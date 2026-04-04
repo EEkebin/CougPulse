@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { adminFetch } from "@/lib/admin-client";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import type { LayoutFloor, LayoutPoint } from "@/lib/layout-types";
 
 const SVG_SIZE = 1000;
@@ -105,7 +107,7 @@ export default function FloorLayoutEditor({
     if (!selectedFloor) return;
     if (points.length < 3) return;
 
-    const res = await fetch("/api/layout/rooms", {
+    const res = await adminFetch("/api/layout/rooms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -126,7 +128,7 @@ export default function FloorLayoutEditor({
   async function saveRoomName() {
     if (!selectedRoomId) return;
     setSaving(true);
-    await fetch(`/api/layout/rooms/${selectedRoomId}`, {
+    await adminFetch(`/api/layout/rooms/${selectedRoomId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: roomNameDraft }),
@@ -138,7 +140,7 @@ export default function FloorLayoutEditor({
   async function deleteRoom() {
     if (!selectedRoomId) return;
     setSaving(true);
-    await fetch(`/api/layout/rooms/${selectedRoomId}`, { method: "DELETE" });
+    await adminFetch(`/api/layout/rooms/${selectedRoomId}`, { method: "DELETE" });
     setSelectedRoomId(null);
     setRoomNameDraft("");
     await onLayoutChange();
@@ -151,7 +153,7 @@ export default function FloorLayoutEditor({
 
     const reader = new FileReader();
     reader.onload = async () => {
-      await fetch(`/api/floors/${selectedFloor.id}`, {
+      await adminFetch(`/api/floors/${selectedFloor.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ floorPlanImage: typeof reader.result === "string" ? reader.result : null }),
@@ -163,7 +165,7 @@ export default function FloorLayoutEditor({
 
   async function createFloor() {
     setSaving(true);
-    const res = await fetch("/api/floors", { method: "POST" });
+    const res = await adminFetch("/api/floors", { method: "POST" });
     if (res.ok) {
       const floor = await res.json();
       setSelectedFloorId(floor.id);
@@ -176,7 +178,7 @@ export default function FloorLayoutEditor({
 
   async function renameFloor(name: string) {
     if (!selectedFloor) return;
-    await fetch(`/api/floors/${selectedFloor.id}`, {
+    await adminFetch(`/api/floors/${selectedFloor.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
@@ -190,7 +192,21 @@ export default function FloorLayoutEditor({
     <section className="ross-editor-shell">
       <aside className="ross-panel">
         <section className="ross-card">
-          <h2>1) Floors</h2>
+          <div className="ross-card-head">
+            <h2>1) Floors</h2>
+            <button type="button" className="ross-btn ross-btn-accent" onClick={createFloor} disabled={saving}>
+              <span className="ross-btn-content">
+                {saving ? (
+                  <>
+                    <LoadingSpinner className="ross-spinner-sm" />
+                    Working...
+                  </>
+                ) : (
+                  "Add Floor"
+                )}
+              </span>
+            </button>
+          </div>
           <div className="ross-mode-row">
             {floors.map((floor) => (
               <button
@@ -206,11 +222,6 @@ export default function FloorLayoutEditor({
                 {floor.name}
               </button>
             ))}
-          </div>
-          <div className="ross-actions">
-            <button type="button" className="ross-btn ross-btn-accent" onClick={createFloor} disabled={saving}>
-              Add Floor
-            </button>
           </div>
         </section>
 

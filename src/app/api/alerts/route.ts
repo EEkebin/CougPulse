@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAdminUser } from '@/lib/auth'
+import { decryptAlertPayload } from '@/lib/secure-models'
 
 export async function GET(req: NextRequest) {
   const { unauthorized } = await requireAdminUser(req)
@@ -12,7 +13,22 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: 'desc' },
   })
 
-  return NextResponse.json(alerts)
+  return NextResponse.json(alerts.map((alert) => {
+    const decrypted = decryptAlertPayload(alert.data, alert.iv, {
+      subjectName: alert.subjectName,
+      deviceName: alert.deviceName,
+      note: alert.note,
+      faceImage: alert.faceImage,
+    })
+
+    return {
+      ...alert,
+      subjectName: decrypted.subjectName,
+      deviceName: decrypted.deviceName,
+      note: decrypted.note,
+      faceImage: decrypted.faceImage,
+    }
+  }))
 }
 
 export async function PATCH(req: NextRequest) {

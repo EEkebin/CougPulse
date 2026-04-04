@@ -10,6 +10,7 @@ model AdminUser {
   id           String   @id @default(cuid())
   username     String   @unique
   passwordHash String
+  token        String?  @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -20,6 +21,8 @@ model Subject {
   iv              Bytes
   isTroublemaker  Boolean  @default(false)
   notes           String?
+  notesEncrypted  Bytes?
+  notesIv         Bytes?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -56,6 +59,10 @@ model Device {
   lastAudioLevel Float?
   previewImage   String?
   previewTakenAt DateTime?
+  nameEncrypted  Bytes?
+  nameIv         Bytes?
+  previewData    Bytes?
+  previewIv      Bytes?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
@@ -77,6 +84,8 @@ model SecurityAlert {
   roomId      String?
   note        String?
   faceImage   String?
+  data        Bytes?
+  iv          Bytes?
   createdAt   DateTime @default(now())
   clearedAt   DateTime?
 }

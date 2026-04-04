@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as faceapi from "face-api.js";
 import { toast } from "sonner";
+import { adminFetch, clearAdminToken } from "@/lib/admin-client";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { isDeviceOnline } from "@/lib/devices";
 import type { LayoutFloor } from "@/lib/layout-types";
 
@@ -82,7 +84,9 @@ export default function AdminPage() {
   const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
   const [floors, setFloors] = useState<LayoutFloor[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminOfficer[]>([]);
+  const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -101,6 +105,10 @@ export default function AdminPage() {
   const [deviceDraftDirty, setDeviceDraftDirty] = useState(false);
   const [newOfficerUsername, setNewOfficerUsername] = useState("");
   const [newOfficerPassword, setNewOfficerPassword] = useState("");
+  const [newOfficerPasswordConfirm, setNewOfficerPasswordConfirm] = useState("");
+  const [savingDevice, setSavingDevice] = useState(false);
+  const [clearingAlerts, setClearingAlerts] = useState(false);
+  const [creatingOfficer, setCreatingOfficer] = useState(false);
   const lastDraftDeviceIdRef = useRef<string | null>(null);
 
   const roomOptions = useMemo(
@@ -117,12 +125,31 @@ export default function AdminPage() {
   const roomLabelMap = useMemo(() => new Map(roomOptions.map((room) => [room.id, room.label])), [roomOptions]);
 
   useEffect(() => {
-    loadModels();
-    refreshAll();
-    void loadAdminUsers();
-    const interval = window.setInterval(refreshAll, SECURITY_REFRESH_MS);
-    return () => window.clearInterval(interval);
-  }, []);
+    let active = true;
+    let interval = 0;
+
+    async function boot() {
+      const me = await adminFetch("/api/auth/me", { cache: "no-store" });
+      if (!active) return;
+
+      if (!me.ok) {
+        clearAdminToken();
+        router.replace("/login?next=/admin");
+        return;
+      }
+
+      setAuthReady(true);
+      loadModels();
+      await Promise.all([refreshAll(), loadAdminUsers(), loadCurrentAdmin()]);
+      interval = window.setInterval(refreshAll, SECURITY_REFRESH_MS);
+    }
+
+    void boot();
+    return () => {
+      active = false;
+      if (interval) window.clearInterval(interval);
+    };
+  }, [router]);
 
   useEffect(() => {
     if (stream && videoRef.current) {
@@ -277,17 +304,17 @@ export default function AdminPage() {
   }
 
   async function loadSubjects() {
-    const res = await fetch("/api/faces", { cache: "no-store" });
+    const res = await adminFetch("/api/faces", { cache: "no-store" });
     if (res.ok) setSubjects(await res.json());
   }
 
   async function loadDevices() {
-    const res = await fetch("/api/devices", { cache: "no-store" });
+    const res = await adminFetch("/api/devices", { cache: "no-store" });
     if (res.ok) setDevices(await res.json());
   }
 
   async function loadAlerts() {
-    const res = await fetch("/api/alerts", { cache: "no-store" });
+    const res = await adminFetch("/api/alerts", { cache: "no-store" });
     if (res.ok) setAlerts(await res.json());
   }
 
@@ -297,15 +324,28 @@ export default function AdminPage() {
   }
 
   async function loadAdminUsers() {
-    const res = await fetch("/api/admin/users", { cache: "no-store" });
+    const res = await adminFetch("/api/admin/users", { cache: "no-store" });
     if (res.ok) setAdminUsers(await res.json());
   }
 
-  async function clearAllAlerts() {
-    const res = await fetch("/api/alerts", { method: "PATCH" });
+  async function loadCurrentAdmin() {
+    const res = await adminFetch("/api/auth/me", { cache: "no-store" });
     if (!res.ok) return;
+    const payload = await res.json();
+    setCurrentAdminId(payload.id);
+  }
+
+  async function clearAllAlerts() {
+    setClearingAlerts(true);
+    const res = await adminFetch("/api/alerts", { method: "PATCH" });
+    if (!res.ok) {
+      setClearingAlerts(false);
+      toast.error("Could not clear alerts");
+      return;
+    }
     setAlerts([]);
     seenAlertIdsRef.current = new Set();
+    setClearingAlerts(false);
     toast.success("All alerts cleared");
   }
 
@@ -356,7 +396,7 @@ export default function AdminPage() {
   async function saveCalibration(name: string, notes: string, isTroublemaker: boolean, descriptors: Float32Array[]) {
     setCalibSaving(true);
     for (const descriptor of descriptors) {
-      await fetch("/api/faces", {
+      await adminFetch("/api/faces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -374,10 +414,11 @@ export default function AdminPage() {
     setCalibStep(0);
     setCalibSaving(false);
     await loadSubjects();
+    toast.success("Face samples saved");
   }
 
   async function updateSubject(subject: Subject, changes: { isTroublemaker?: boolean; notes?: string | null }) {
-    await fetch(`/api/faces/${subject.id}`, {
+    await adminFetch(`/api/faces/${subject.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(changes),
@@ -386,13 +427,14 @@ export default function AdminPage() {
   }
 
   async function deleteSubject(id: string) {
-    await fetch(`/api/faces/${id}`, { method: "DELETE" });
+    await adminFetch(`/api/faces/${id}`, { method: "DELETE" });
     await loadSubjects();
   }
 
   async function saveSelectedDevice() {
     if (!selectedDeviceId) return;
-    await fetch(`/api/devices/${selectedDeviceId}`, {
+    setSavingDevice(true);
+    const res = await adminFetch(`/api/devices/${selectedDeviceId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -400,12 +442,21 @@ export default function AdminPage() {
         assignedRoomId: deviceRoomDraft || null,
       }),
     });
+
+    if (!res.ok) {
+      setSavingDevice(false);
+      toast.error("Could not save device changes");
+      return;
+    }
+
     setDeviceDraftDirty(false);
     await loadDevices();
+    setSavingDevice(false);
+    toast.success("Device updated");
   }
 
   async function clearAlert(id: string) {
-    await fetch(`/api/alerts/${id}`, {
+    await adminFetch(`/api/alerts/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ clear: true }),
@@ -414,7 +465,13 @@ export default function AdminPage() {
   }
 
   async function createSecurityOfficer() {
-    const res = await fetch("/api/admin/users", {
+    if (newOfficerPassword !== newOfficerPasswordConfirm) {
+      toast.error("New officer passwords do not match");
+      return;
+    }
+
+    setCreatingOfficer(true);
+    const res = await adminFetch("/api/admin/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -425,13 +482,16 @@ export default function AdminPage() {
 
     if (!res.ok) {
       const payload = await res.json().catch(() => ({ error: "Could not create security officer" }));
+      setCreatingOfficer(false);
       toast.error(payload.error || "Could not create security officer");
       return;
     }
 
     setNewOfficerUsername("");
     setNewOfficerPassword("");
+    setNewOfficerPasswordConfirm("");
     await loadAdminUsers();
+    setCreatingOfficer(false);
     toast.success("Security officer added");
   }
 
@@ -453,9 +513,24 @@ export default function AdminPage() {
   }, [subjects]);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await adminFetch("/api/auth/logout", { method: "POST" });
+    clearAdminToken();
     router.replace("/login");
     router.refresh();
+  }
+
+  if (!authReady) {
+    return (
+      <main className="ross-shell ross-login-shell">
+        <section className="ross-login-card ross-card">
+          <div className="ross-loading-state">
+            <LoadingSpinner />
+            <h1>Checking Admin Access</h1>
+            <p className="ross-hint">Validating your security officer token.</p>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (
@@ -493,7 +568,16 @@ export default function AdminPage() {
               </div>
               {!cameraActive && (
                 <button className="ross-btn ross-btn-primary" disabled={!modelsLoaded} onClick={startCamera}>
-                  {modelsLoaded ? "Start Local Camera" : "Loading Models"}
+                  <span className="ross-btn-content">
+                    {!modelsLoaded ? (
+                      <>
+                        <LoadingSpinner className="ross-spinner-sm" />
+                        Loading Models
+                      </>
+                    ) : (
+                      "Start Local Camera"
+                    )}
+                  </span>
                 </button>
               )}
             </div>
@@ -547,7 +631,18 @@ export default function AdminPage() {
                   onClick={beginCalibration}
                   disabled={!cameraActive || !newPersonName.trim() || calibActive || calibSaving}
                 >
-                  {calibSaving ? "Saving Samples..." : calibActive ? `Capturing ${calibStep}/${CALIB_STEPS.length}` : "Start Calibration"}
+                  <span className="ross-btn-content">
+                    {calibSaving ? (
+                      <>
+                        <LoadingSpinner className="ross-spinner-sm" />
+                        Saving Samples...
+                      </>
+                    ) : calibActive ? (
+                      `Capturing ${calibStep}/${CALIB_STEPS.length}`
+                    ) : (
+                      "Start Calibration"
+                    )}
+                  </span>
                 </button>
               </div>
             </div>
@@ -621,8 +716,17 @@ export default function AdminPage() {
                       <div>Device id</div>
                       <div>{selectedDevice.id}</div>
                     </div>
-                    <button className="ross-btn ross-btn-primary" onClick={saveSelectedDevice}>
-                      Save Device
+                    <button className="ross-btn ross-btn-primary" onClick={saveSelectedDevice} disabled={savingDevice || !deviceDraftDirty}>
+                      <span className="ross-btn-content">
+                        {savingDevice ? (
+                          <>
+                            <LoadingSpinner className="ross-spinner-sm" />
+                            Saving Device...
+                          </>
+                        ) : (
+                          "Save Device"
+                        )}
+                      </span>
                     </button>
                   </>
                 ) : (
@@ -665,8 +769,17 @@ export default function AdminPage() {
               </div>
               <div className="ross-actions">
                 {alerts.length > 0 && (
-                  <button className="ross-btn" onClick={clearAllAlerts}>
-                    Clear All
+                  <button className="ross-btn" onClick={clearAllAlerts} disabled={clearingAlerts}>
+                    <span className="ross-btn-content">
+                      {clearingAlerts ? (
+                        <>
+                          <LoadingSpinner className="ross-spinner-sm" />
+                          Clearing...
+                        </>
+                      ) : (
+                        "Clear All"
+                      )}
+                    </span>
                   </button>
                 )}
                 <span className="ross-status-chip alert">{alerts.length}</span>
@@ -793,19 +906,35 @@ export default function AdminPage() {
                   className="ross-text-input"
                   placeholder="Temporary password"
                 />
+                <input
+                  value={newOfficerPasswordConfirm}
+                  onChange={(event) => setNewOfficerPasswordConfirm(event.target.value)}
+                  type="password"
+                  className="ross-text-input"
+                  placeholder="Confirm temporary password"
+                />
                 <button
                   className="ross-btn ross-btn-primary"
                   type="button"
                   onClick={createSecurityOfficer}
-                  disabled={!newOfficerUsername.trim() || newOfficerPassword.length < 4}
+                  disabled={creatingOfficer || !newOfficerUsername.trim() || newOfficerPassword.length < 4 || newOfficerPasswordConfirm.length < 4}
                 >
-                  Add Officer
+                  <span className="ross-btn-content">
+                    {creatingOfficer ? (
+                      <>
+                        <LoadingSpinner className="ross-spinner-sm" />
+                        Adding Officer...
+                      </>
+                    ) : (
+                      "Add Officer"
+                    )}
+                  </span>
                 </button>
               </div>
 
               <div className="ross-subject-grid ross-panel-scroll">
                 {adminUsers.map((user) => (
-                  <SecurityOfficerCard key={user.id} user={user} onSaved={loadAdminUsers} />
+                  <SecurityOfficerCard key={user.id} user={user} currentAdminId={currentAdminId} onSaved={loadAdminUsers} />
                 ))}
               </div>
             </div>
@@ -818,21 +947,30 @@ export default function AdminPage() {
 
 function SecurityOfficerCard({
   user,
+  currentAdminId,
   onSaved,
 }: {
   user: AdminOfficer;
+  currentAdminId: string | null;
   onSaved: () => Promise<void>;
 }) {
+  const router = useRouter();
   const [username, setUsername] = useState(user.username);
-  const [password, setPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
   const lastUserIdRef = useRef<string | null>(null);
+  const isCurrentOfficer = currentAdminId === user.id;
 
   useEffect(() => {
     const changedUser = lastUserIdRef.current !== user.id;
     if (changedUser || !dirty) {
       setUsername(user.username);
-      setPassword("");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
       setDirty(false);
       lastUserIdRef.current = user.id;
     }
@@ -857,42 +995,99 @@ function SecurityOfficerCard({
         placeholder="Username"
       />
       <input
-        value={password}
+        value={currentPassword}
         onChange={(event) => {
-          setPassword(event.target.value);
+          setCurrentPassword(event.target.value);
+          setDirty(true);
+        }}
+        type="password"
+        className="ross-text-input"
+        placeholder={isCurrentOfficer ? "Current password" : "Password changes only available for the signed-in officer"}
+        disabled={!isCurrentOfficer}
+      />
+      <input
+        value={newPassword}
+        onChange={(event) => {
+          setNewPassword(event.target.value);
           setDirty(true);
         }}
         type="password"
         className="ross-text-input"
         placeholder="New password"
+        disabled={!isCurrentOfficer}
+      />
+      <input
+        value={confirmPassword}
+        onChange={(event) => {
+          setConfirmPassword(event.target.value);
+          setDirty(true);
+        }}
+        type="password"
+        className="ross-text-input"
+        placeholder="Confirm new password"
+        disabled={!isCurrentOfficer}
       />
       <button
         className="ross-btn ross-btn-primary"
         type="button"
-        disabled={!dirty || !username.trim() || (password.length > 0 && password.length < 4)}
+        disabled={saving || !dirty || !username.trim() || (isCurrentOfficer && ((newPassword.length > 0 && newPassword.length < 4) || (confirmPassword.length > 0 && confirmPassword.length < 4)))}
         onClick={async () => {
-          const res = await fetch(`/api/admin/users/${user.id}`, {
+          if (isCurrentOfficer && newPassword !== confirmPassword) {
+            toast.error("New passwords do not match");
+            return;
+          }
+
+          setSaving(true);
+          const res = await adminFetch(`/api/admin/users/${user.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               username,
-              ...(password ? { password } : {}),
+              ...(isCurrentOfficer && newPassword ? { currentPassword, newPassword } : {}),
             }),
           });
 
           if (!res.ok) {
             const payload = await res.json().catch(() => ({ error: "Could not update security officer" }));
+            setSaving(false);
             toast.error(payload.error || "Could not update security officer");
             return;
           }
 
+          const changedOwnPassword = isCurrentOfficer && Boolean(newPassword);
           setDirty(false);
-          setPassword("");
+          setCurrentPassword("");
+          setNewPassword("");
+          setConfirmPassword("");
+
+          if (changedOwnPassword) {
+            clearAdminToken();
+            toast.success("Password changed", {
+              description: "Sign in again with the new password to continue.",
+              duration: 2200,
+            });
+            window.setTimeout(() => {
+              router.replace("/login");
+              router.refresh();
+            }, 500);
+            return;
+          }
+
           await onSaved();
+          setSaving(false);
           toast.success("Security officer updated");
         }}
       >
-        Save Officer
+        <span className="ross-btn-content">
+          {saving ? (
+            <>
+              <LoadingSpinner className="ross-spinner-sm" />
+              Saving Officer...
+            </>
+          ) : (
+            "Save Officer"
+          )}
+        </span>
       </button>
     </div>
   );
@@ -912,6 +1107,7 @@ function SubjectCard({
   const [isTroublemaker, setIsTroublemaker] = useState(representative.isTroublemaker);
   const [notes, setNotes] = useState(representative.notes ?? "");
   const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
   const lastRepresentativeIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -959,12 +1155,23 @@ function SubjectCard({
       <button
         className="ross-btn ross-btn-primary"
         onClick={async () => {
+          setSaving(true);
           await onSave(representative, { isTroublemaker, notes });
           setDirty(false);
+          setSaving(false);
         }}
-        disabled={!dirty}
+        disabled={saving || !dirty}
       >
-        Save Changes
+        <span className="ross-btn-content">
+          {saving ? (
+            <>
+              <LoadingSpinner className="ross-spinner-sm" />
+              Saving...
+            </>
+          ) : (
+            "Save Changes"
+          )}
+        </span>
       </button>
     </div>
   );

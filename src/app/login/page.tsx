@@ -1,7 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { adminFetch, clearAdminToken, setAdminToken } from "@/lib/admin-client";
+import LoadingSpinner from "@/components/LoadingSpinner";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,6 +19,28 @@ export default function LoginPage() {
     const params = new URLSearchParams(window.location.search);
     setNextPath(params.get("next") || "/admin");
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function checkExistingToken() {
+      const res = await adminFetch("/api/auth/me", { cache: "no-store" });
+      if (!active) return;
+
+      if (res.ok) {
+        router.replace(nextPath);
+        router.refresh();
+        return;
+      }
+
+      clearAdminToken();
+    }
+
+    void checkExistingToken();
+    return () => {
+      active = false;
+    };
+  }, [nextPath, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,6 +60,11 @@ export default function LoginPage() {
       return;
     }
 
+    const payload = await res.json();
+    if (payload?.token) {
+      setAdminToken(payload.token);
+    }
+
     router.replace(nextPath);
     router.refresh();
   }
@@ -42,6 +72,12 @@ export default function LoginPage() {
   return (
     <main className="ross-shell ross-login-shell">
       <section className="ross-login-card ross-card">
+        <div className="ross-top-back-row">
+          <Link href="/" className="ross-link-btn ross-top-back-btn">
+            {"<- Back To Home Page"}
+          </Link>
+        </div>
+
         <div>
           <h1>Admin Login</h1>
           <p className="ross-hint">Sign in to access the security console, layout planner, and protected device tools.</p>
@@ -74,7 +110,16 @@ export default function LoginPage() {
           {error ? <div className="ross-login-error">{error}</div> : null}
 
           <button className="ross-btn ross-btn-primary" type="submit" disabled={submitting}>
-            {submitting ? "Signing In..." : "Sign In"}
+            <span className="ross-btn-content">
+              {submitting ? (
+                <>
+                  <LoadingSpinner className="ross-spinner-sm" />
+                  Signing In...
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </span>
           </button>
         </form>
       </section>

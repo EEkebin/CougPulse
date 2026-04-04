@@ -1,14 +1,18 @@
-import { NextResponse } from "next/server";
-import { ADMIN_SESSION_COOKIE } from "@/lib/auth-shared";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdminUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
-export async function POST() {
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(ADMIN_SESSION_COOKIE, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: new Date(0),
+export async function POST(req: NextRequest) {
+  const { adminUser } = await requireAdminUser(req);
+
+  if (adminUser) {
+    await prisma.adminUser.update({
+      where: { id: adminUser.id },
+      data: { token: null },
+    });
+  }
+
+  return NextResponse.json({
+    ok: true,
   });
-  return response;
 }

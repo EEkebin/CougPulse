@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as faceapi from "face-api.js";
+import { adminFetch, clearAdminToken } from "@/lib/admin-client";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { defaultDeviceName } from "@/lib/devices";
 import type { LayoutFloor } from "@/lib/layout-types";
 
@@ -60,7 +63,13 @@ function readStoredDeviceRecord() {
   }
 }
 
+function getStoredDeviceToken() {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(CLIENT_KEY_STORAGE);
+}
+
 export default function DevicePage() {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -76,12 +85,32 @@ export default function DevicePage() {
   const [recognized, setRecognized] = useState<DetectionLabel[]>([]);
   const [alertBanner, setAlertBanner] = useState<string | null>(null);
   const [reportingEnabled, setReportingEnabled] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
-    ensureDevice();
-    loadModels();
-    void loadFloors();
-  }, []);
+    let active = true;
+
+    async function boot() {
+      const me = await adminFetch("/api/auth/me", { cache: "no-store" });
+      if (!active) return;
+
+      if (!me.ok) {
+        clearAdminToken();
+        router.replace("/login?next=/device");
+        return;
+      }
+
+      setAuthReady(true);
+      ensureDevice();
+      loadModels();
+      void loadFloors();
+    }
+
+    void boot();
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   useEffect(() => {
     if (!device || typeof window === "undefined") return;
@@ -99,9 +128,13 @@ export default function DevicePage() {
 
     const heartbeat = window.setInterval(() => {
       const previewImage = capturePreview();
+      const deviceToken = getStoredDeviceToken();
       fetch(`/api/devices/${device.id}/heartbeat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(deviceToken ? { "x-device-token": deviceToken } : {}),
+        },
         body: JSON.stringify({ audioLevel: audioLevelRef.current, previewImage }),
       })
         .then((res) => res.ok ? res.json() : null)
@@ -113,7 +146,11 @@ export default function DevicePage() {
     }, HEARTBEAT_MS);
 
     const refresh = window.setInterval(() => {
-      fetch(`/api/devices/${device.id}`, { cache: "no-store" })
+      const deviceToken = getStoredDeviceToken();
+      fetch(`/api/devices/${device.id}`, {
+        cache: "no-store",
+        headers: deviceToken ? { "x-device-token": deviceToken } : {},
+      })
         .then((res) => res.ok ? res.json() : null)
         .then((payload) => {
           if (payload) setDevice(payload);
@@ -155,9 +192,13 @@ export default function DevicePage() {
             const results = await Promise.all(
               detections.map(async (detection, index) => {
                 const faceImage = captureFaceImage(detection.detection.box);
+                const deviceToken = getStoredDeviceToken();
                 const res = await fetch("/api/identify", {
                   method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                  headers: {
+                    "Content-Type": "application/json",
+                    ...(deviceToken ? { "x-device-token": deviceToken } : {}),
+                  },
                   body: JSON.stringify({
                     descriptor: Array.from(detection.descriptor),
                     deviceId: device.id,
@@ -226,7 +267,10 @@ export default function DevicePage() {
     const storedClientKey = typeof window !== "undefined" ? window.localStorage.getItem(CLIENT_KEY_STORAGE) ?? parsedRecord?.clientKey ?? null : null;
     const storedId = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) ?? parsedRecord?.id ?? null : null;
     if (storedId) {
-      const existing = await fetch(`/api/devices/${storedId}`, { cache: "no-store" });
+      const existing = await fetch(`/api/devices/${storedId}`, {
+        cache: "no-store",
+        headers: storedClientKey ? { "x-device-token": storedClientKey } : {},
+      });
       if (existing.ok) {
         const payload = await existing.json();
         window.localStorage.setItem(STORAGE_KEY, payload.id);
@@ -375,118 +419,133 @@ export default function DevicePage() {
   }, [device?.assignedRoomId, roomLabelMap]);
 
   return (
-    <main className="cp-shell">
-      <div className="cp-bg-shape cp-shape-a" aria-hidden="true" />
-      <div className="cp-bg-shape cp-shape-b" aria-hidden="true" />
-
-      <div className="cp-app-shell">
-        <section className="cp-dashboard">
-          <header className="cp-card cp-topbar">
-            <div>
-              <h1>CougPulse Device Client</h1>
-              <p>This phone or laptop joins the system as a camera and microphone device.</p>
-            </div>
-            <div className="cp-topbar-actions">
-              <Link href="/admin" className="cp-btn cp-btn-ghost">
-                Security Console
+    !authReady ? (
+      <main className="ross-shell ross-login-shell">
+        <section className="ross-login-card ross-card">
+          <div className="ross-loading-state">
+            <LoadingSpinner />
+            <h1>Checking Admin Access</h1>
+            <p className="ross-hint">Validating your security officer token.</p>
+          </div>
+        </section>
+      </main>
+    ) : (
+      <main className="ross-shell">
+        <header className="ross-top-bar">
+          <div className="ross-top-bar-left">
+            <div className="ross-top-back-row">
+              <Link href="/admin" className="ross-link-btn ross-top-back-btn">
+                {"<- Back To Admin"}
               </Link>
-              <Link href="/" className="cp-btn cp-btn-primary">
-                Student Heatmap
-              </Link>
             </div>
-          </header>
+            <h1>CougPulse Device Client</h1>
+            <p>This phone or laptop joins the system as a camera and microphone device.</p>
+          </div>
+          <div className="ross-top-actions">
+            <span className="ross-status-pill">{device?.name ?? "Connecting device"}</span>
+            <Link href="/" className="ross-btn ross-btn-primary">
+              Student Heatmap
+            </Link>
+          </div>
+        </header>
 
-          {alertBanner && (
-            <section className="cp-card border border-[#eb5757] bg-[#fff1f1] p-4 text-[#7d1c1c]">
-              <strong>Flagged Person Detected:</strong> {alertBanner}
-            </section>
-          )}
+        <section className="ross-device-shell">
+          <section className="ross-card ross-device-main">
+            <div className="ross-card-head">
+              <div>
+                <h2>Live Camera Feed</h2>
+                <p className="ross-hint">Recognition runs here and sends room-aware alerts back to the security console.</p>
+              </div>
+              {!streamActive && (
+                <button className="ross-btn ross-btn-primary" disabled={!modelsLoaded || !device} onClick={startStreaming}>
+                  <span className="ross-btn-content">
+                    {!modelsLoaded ? (
+                      <>
+                        <LoadingSpinner className="ross-spinner-sm" />
+                        Loading Models
+                      </>
+                    ) : (
+                      "Start Device Stream"
+                    )}
+                  </span>
+                </button>
+              )}
+            </div>
 
-          <section className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-            <div className="cp-card p-4">
-              <div className="mb-4 flex items-center justify-between gap-4">
+            <div className="ross-video-shell ross-device-video">
+              <video ref={videoRef} autoPlay playsInline muted className="ross-video-feed" />
+              <canvas ref={canvasRef} className="ross-video-overlay" />
+              {!streamActive && <div className="ross-video-empty">Start the device stream after security opens and assigns this client.</div>}
+            </div>
+
+            <div className="ross-stack">
+              <div className="ross-meter-row">
+                <span>{reportingEnabled ? "Audio Feed" : "Audio Waiting"}</span>
+                <span>{Math.round((audioLevel / 128) * 100)}%</span>
+              </div>
+              <div className="ross-meter-track">
+                <div className="ross-meter-fill" style={{ width: `${Math.min(100, (audioLevel / 128) * 100)}%` }} />
+              </div>
+              {!reportingEnabled && (
+                <div className="ross-device-warning">
+                  This device is connected, but it will not report noise levels or trigger alerts until security assigns it to a room.
+                </div>
+              )}
+              {alertBanner && (
+                <div className="ross-device-alert">
+                  <strong>Flagged Person Detected:</strong> {alertBanner}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <aside className="ross-panel">
+            <section className="ross-card">
+              <div className="ross-card-head">
                 <div>
-                  <h3 className="m-0 font-semibold">Live Camera Feed</h3>
-                  <p className="mt-1 text-sm text-[#686d75]">Recognition runs here and alerts the security dashboard when a troublemaker is matched.</p>
+                  <h2>Device Status</h2>
+                  <p className="ross-hint">This browser acts as one camera and microphone client.</p>
                 </div>
-                {!streamActive && (
-                  <button className="cp-btn cp-btn-primary" disabled={!modelsLoaded || !device} onClick={startStreaming}>
-                    {modelsLoaded ? "Start Device Stream" : "Loading Models"}
-                  </button>
-                )}
               </div>
-
-              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black">
-                <video ref={videoRef} autoPlay playsInline muted className="block w-full scale-x-[-1]" />
-                <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
-                {!streamActive && (
-                  <div className="absolute inset-0 grid place-items-center bg-[#121316] text-sm text-zinc-400">
-                    Start the device stream after security has the client open.
-                  </div>
-                )}
+              <div className="ross-data-grid">
+                <div>Device Name</div>
+                <div>{device?.name ?? "Connecting..."}</div>
+                <div>Assigned Room</div>
+                <div>{assignedRoomLabel}</div>
+                <div>Reporting Status</div>
+                <div>{reportingEnabled ? "Reporting enabled" : "Waiting for room assignment"}</div>
+                <div>Last Heartbeat</div>
+                <div>{device?.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "Waiting for first heartbeat"}</div>
               </div>
+            </section>
 
-              <div className="mt-4 space-y-2">
-                <div className="flex justify-between text-xs uppercase tracking-[0.25em] text-[#686d75]">
-                  <span>{reportingEnabled ? "Audio Feed" : "Audio Waiting"}</span>
-                  <span>{Math.round((audioLevel / 128) * 100)}%</span>
+            <section className="ross-card">
+              <div className="ross-card-head">
+                <div>
+                  <h2>Recognized Faces</h2>
+                  <p className="ross-hint">Current detections from this device feed.</p>
                 </div>
-                <div className="h-3 overflow-hidden rounded-full border border-white/10 bg-black/30">
-                  <div className="h-full bg-emerald-500 transition-all" style={{ width: `${Math.min(100, (audioLevel / 128) * 100)}%` }} />
-                </div>
-                {!reportingEnabled && (
-                  <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
-                    This device is connected, but it will not report noise levels or trigger security alerts until security assigns it to a room.
-                  </div>
-                )}
               </div>
-            </div>
-
-            <div className="space-y-4">
-              <section className="cp-card p-4">
-                <h3 className="m-0 font-semibold">Device Status</h3>
-                <div className="mt-3 grid gap-3 rounded-2xl bg-white/60 p-4 text-sm text-[#2a2d32]">
-                  <div>
-                    <span className="block text-xs uppercase tracking-[0.2em] text-[#686d75]">Device Name</span>
-                    <strong>{device?.name ?? "Connecting..."}</strong>
+              <div className="ross-list ross-device-recognition-list">
+                {recognized.length === 0 ? (
+                  <div className="ross-empty">
+                    {reportingEnabled ? "No faces detected yet." : "Recognition is paused until this device is assigned to a room."}
                   </div>
-                  <div>
-                    <span className="block text-xs uppercase tracking-[0.2em] text-[#686d75]">Assigned Room</span>
-                    <strong>{assignedRoomLabel}</strong>
-                  </div>
-                  <div>
-                    <span className="block text-xs uppercase tracking-[0.2em] text-[#686d75]">Reporting Status</span>
-                    <strong>{reportingEnabled ? "Reporting enabled" : "Waiting for room assignment"}</strong>
-                  </div>
-                  <div>
-                    <span className="block text-xs uppercase tracking-[0.2em] text-[#686d75]">Last Heartbeat</span>
-                    <strong>{device?.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "Waiting for first heartbeat"}</strong>
-                  </div>
-                </div>
-              </section>
-
-              <section className="cp-card p-4">
-                <h3 className="m-0 font-semibold">Recognized Faces</h3>
-                <div className="mt-3 space-y-2">
-                  {recognized.length === 0 && (
-                    <div className="rounded-xl bg-white/60 p-4 text-sm text-[#686d75]">
-                      {reportingEnabled ? "No faces detected yet." : "Recognition is paused until this device is assigned to a room."}
-                    </div>
-                  )}
-                  {recognized.map((item) => (
-                    <div key={item.key} className="flex items-center justify-between rounded-xl border border-[#d6dbe0] bg-white/70 p-3">
+                ) : (
+                  recognized.map((item) => (
+                    <div key={item.key} className="ross-item ross-device-recognition-item">
                       <strong>{item.label}</strong>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${item.isTroublemaker ? "bg-[#9e1b32] text-white" : "bg-emerald-100 text-emerald-700"}`}>
+                      <span className={`ross-status-chip ${item.isTroublemaker ? "alert" : "online"}`}>
                         {item.isTroublemaker ? "Troublemaker" : "Recognized"}
                       </span>
                     </div>
-                  ))}
-                </div>
-              </section>
-            </div>
-          </section>
+                  ))
+                )}
+              </div>
+            </section>
+          </aside>
         </section>
-      </div>
-    </main>
+      </main>
+    )
   );
 }

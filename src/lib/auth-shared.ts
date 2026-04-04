@@ -1,8 +1,5 @@
-export const ADMIN_SESSION_COOKIE = "cougpulse_admin_session";
+export const ADMIN_TOKEN_HEADER = "x-admin-token";
+export const ADMIN_TOKEN_STORAGE = "cougpulse_admin_token";
+export const DEVICE_TOKEN_HEADER = "x-device-token";
 export const DEFAULT_ADMIN_USERNAME = "admin";
 export const DEFAULT_ADMIN_PASSWORD = "password";
-export const DEFAULT_ADMIN_SESSION_SECRET = "cougpulse-dev-session-secret";
-
-export function getAdminSessionSecret() {
-  return process.env.ADMIN_SESSION_SECRET?.trim() || DEFAULT_ADMIN_SESSION_SECRET;
-}

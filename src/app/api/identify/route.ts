@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { decryptSubject } from '@/lib/crypto'
-import { requireAdminUser } from '@/lib/auth'
+import { requireDeviceOrAdmin } from '@/lib/auth'
+import { decryptOptionalString, encryptAlertPayload } from '@/lib/secure-models'
 
 function euclideanDistance(a: Float32Array, b: Float32Array): number {
   let sum = 0
@@ -12,13 +13,16 @@ function euclideanDistance(a: Float32Array, b: Float32Array): number {
 const THRESHOLD = 0.6
 
 export async function POST(req: NextRequest) {
-  const { unauthorized } = await requireAdminUser(req)
-  if (unauthorized) return unauthorized
-
   const { descriptor, deviceId, faceImage } = await req.json()
   if (!Array.isArray(descriptor)) {
     return NextResponse.json({ error: 'Missing descriptor' }, { status: 400 })
   }
+  if (typeof deviceId !== 'string' || !deviceId) {
+    return NextResponse.json({ error: 'Missing deviceId' }, { status: 400 })
+  }
+
+  const { unauthorized } = await requireDeviceOrAdmin(req, deviceId)
+  if (unauthorized) return unauthorized
 
   const query = new Float32Array(descriptor)
   const subjects = await prisma.subject.findMany()
@@ -38,9 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   const subject = await prisma.subject.findUnique({ where: { id: best.id } })
-  const device = typeof deviceId === 'string' && deviceId
-    ? await prisma.device.findUnique({ where: { id: deviceId } })
-    : null
+  const device = await prisma.device.findUnique({ where: { id: deviceId } })
 
   if (device && !device.assignedRoomId) {
     return NextResponse.json({
@@ -73,12 +75,24 @@ export async function POST(req: NextRequest) {
       await prisma.securityAlert.create({
         data: {
           subjectId: best.id,
-          subjectName: best.name,
+          subjectName: '[encrypted]',
           deviceId: device?.id ?? null,
-          deviceName: device?.name ?? null,
+          deviceName: null,
           roomId: device?.assignedRoomId ?? null,
-          note: subject.notes,
-          faceImage: typeof faceImage === 'string' ? faceImage : null,
+          note: null,
+          faceImage: null,
+          ...(() => {
+            const encryptedAlert = encryptAlertPayload({
+              subjectName: best.name,
+              deviceName: decryptOptionalString(device?.nameEncrypted, device?.nameIv, device?.name ?? null),
+              note: decryptOptionalString(subject?.notesEncrypted, subject?.notesIv, subject?.notes ?? null),
+              faceImage: typeof faceImage === 'string' ? faceImage : null,
+            })
+            return {
+              data: encryptedAlert.data,
+              iv: encryptedAlert.iv,
+            }
+          })(),
         },
       })
       alertCreated = true
@@ -90,7 +104,7 @@ export async function POST(req: NextRequest) {
     label: best.name,
     distance: best.distance,
     isTroublemaker: subject?.isTroublemaker ?? false,
-    notes: subject?.notes ?? null,
+    notes: decryptOptionalString(subject?.notesEncrypted, subject?.notesIv, subject?.notes ?? null),
     deviceId: device?.id ?? null,
     roomId: device?.assignedRoomId ?? null,
     alertCreated,

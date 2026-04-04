@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAdminUser } from '@/lib/auth'
+import { decryptOptionalString, encryptOptionalString } from '@/lib/secure-models'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { unauthorized } = await requireAdminUser(req)
@@ -8,19 +9,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params
   const { isTroublemaker, notes } = await req.json()
+  const encryptedNotes = typeof notes === 'string' || notes === null ? encryptOptionalString(notes) : null
 
   const subject = await prisma.subject.update({
     where: { id },
     data: {
       ...(typeof isTroublemaker === 'boolean' ? { isTroublemaker } : {}),
-      ...(typeof notes === 'string' || notes === null ? { notes: notes?.trim() || null } : {}),
+      ...(encryptedNotes ? { notes: null, notesEncrypted: encryptedNotes.encrypted, notesIv: encryptedNotes.iv } : {}),
     },
   })
 
   return NextResponse.json({
     id: subject.id,
     isTroublemaker: subject.isTroublemaker,
-    notes: subject.notes,
+    notes: decryptOptionalString(subject.notesEncrypted, subject.notesIv, subject.notes),
   })
 }
 
