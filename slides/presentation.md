@@ -13,10 +13,10 @@ Smart campus safety and study support for WSU Everett
 
 ## Theme Fit: Smart Campus
 
-Admins build a digital map of their campus by tracing rooms over a map image. That map is the core of two features:
+Admins build a digital map of their campus by tracing rooms over a images of building floor plans. That map is the core of two features:
 
 - **Students** see live noise levels per room to find a quiet place to study
-- **Security** sees device feeds, facial recognition results, and alerts tied to each room
+- **Security** sees device feeds, facial recognition results, and alerts tied to each location.
 
 Rooms have cameras and microphones. Audio data drives the noise heatmap. Video data runs through facial recognition to identify unknown visitors and flagged individuals.
 
@@ -29,17 +29,17 @@ Rooms have cameras and microphones. Audio data drives the noise heatmap. Video d
 - No simple tool to find a better study spot
 
 **Security & IT**
-- The IT Director of WSU Everett wanted to detect possible unwelcomed persons with facial recognition but had no way to protect sensitive identity data with encryption.
-- We rebuilt facial recognition with encryption, making it possible to use facial recognition on campus
+- The IT Director of WSU Everett wanted to use the enhanced security feature of facial recognition but had no encryption to protect sensitive identity data.
+- We rebuilt facial recognition with encryption to comply with state regulations.
 
 ---
 
 ## Solution
 
-Two views:
+Web Application with Two Views:
 
 - **Student Heatmap** — live noise levels shown on the campus map
-- **Admin Console** — device feeds, facial recognition, and alerts by room
+- **Admin Panel** — device feeds, facial recognition, and alerts by area
 
 Cameras and microphones send data in near real time. Sensitive identity data is encrypted at rest.
 
@@ -47,11 +47,11 @@ Cameras and microphones send data in near real time. Sensitive identity data is 
 
 ## Technical Complexity
 
-- Combines authorization, mapping, telemetry, facial recognition and audio
-- Separate accounts for admin and device authorization
-- Face matching with room checks and alerts
-- Linking rooms, devices, readings, and persons
-- Login throttling and encrypted and hashed sensitive fields
+- Fully deployed web app with industry standard Postgres database
+- Utilization of face recognition machine learning model with AR
+- Encrypted and hashed sensitive fields
+- Fully documented frontend, backend and API with industry standard techniques
+
 
 ---
 
@@ -83,16 +83,15 @@ The full workflow runs end to end with live data.
 ## Scalability
 
 - The map is not hardcoded, any building can be set up
-- Upload a map image, then draw rooms on top of it
 - Supports multiple floors and can scale to more buildings
-- Scalar API docs included for onboarding and integration
+- Scalar API docs included for feature onboarding and future integrations
 
 ---
 
 ## Security Design
 
 - AES-256-GCM encryption for sensitive data at rest
-- Argon2id hashing for admin and device passwords
+- Argon2 hashing for admin and device passwords
 - Separate auth tokens for admin and device routes
 - Login throttling to limit brute-force attempts
 
