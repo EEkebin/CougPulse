@@ -11,7 +11,7 @@ function euclideanDistance(a: Float32Array, b: Float32Array): number {
 const THRESHOLD = 0.6
 
 export async function POST(req: NextRequest) {
-  const { descriptor } = await req.json()
+  const { descriptor, deviceId, faceImage } = await req.json()
   if (!Array.isArray(descriptor)) {
     return NextResponse.json({ error: 'Missing descriptor' }, { status: 400 })
   }
@@ -33,5 +33,62 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ match: null, label: 'UNKNOWN' })
   }
 
-  return NextResponse.json({ match: best.id, label: best.name, distance: best.distance })
+  const subject = await prisma.subject.findUnique({ where: { id: best.id } })
+  const device = typeof deviceId === 'string' && deviceId
+    ? await prisma.device.findUnique({ where: { id: deviceId } })
+    : null
+
+  if (device && !device.assignedRoomId) {
+    return NextResponse.json({
+      match: best.id,
+      label: best.name,
+      distance: best.distance,
+      isTroublemaker: false,
+      notes: null,
+      deviceId: device.id,
+      roomId: null,
+      alertCreated: false,
+      blocked: 'DEVICE_UNASSIGNED',
+    })
+  }
+
+  let alertCreated = false
+
+  if (subject?.isTroublemaker) {
+    const existingAlert = await prisma.securityAlert.findFirst({
+      where: {
+        subjectId: best.id,
+        deviceId: device?.id ?? null,
+        roomId: device?.assignedRoomId ?? null,
+        clearedAt: null,
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    if (!existingAlert) {
+      await prisma.securityAlert.create({
+        data: {
+          subjectId: best.id,
+          subjectName: best.name,
+          deviceId: device?.id ?? null,
+          deviceName: device?.name ?? null,
+          roomId: device?.assignedRoomId ?? null,
+          note: subject.notes,
+          faceImage: typeof faceImage === 'string' ? faceImage : null,
+        },
+      })
+      alertCreated = true
+    }
+  }
+
+  return NextResponse.json({
+    match: best.id,
+    label: best.name,
+    distance: best.distance,
+    isTroublemaker: subject?.isTroublemaker ?? false,
+    notes: subject?.notes ?? null,
+    deviceId: device?.id ?? null,
+    roomId: device?.assignedRoomId ?? null,
+    alertCreated,
+  })
 }

@@ -2,12 +2,15 @@ import crypto from 'crypto'
 
 const KEY = Buffer.from(process.env.ENCRYPTION_KEY!, 'hex')
 
-export function encryptSubject(name: string, descriptor: Float32Array): { data: Buffer; iv: Buffer } {
+export function encryptSubject(name: string, descriptor: Float32Array): { data: Uint8Array; iv: Uint8Array } {
   const iv = crypto.randomBytes(12)
   const cipher = crypto.createCipheriv('aes-256-gcm', KEY, iv)
   const plain = Buffer.from(JSON.stringify({ name, descriptor: Array.from(descriptor) }))
   const ciphertext = Buffer.concat([cipher.update(plain), cipher.final()])
-  return { data: Buffer.concat([ciphertext, cipher.getAuthTag()]), iv }
+  return {
+    data: Uint8Array.from(Buffer.concat([ciphertext, cipher.getAuthTag()])),
+    iv: Uint8Array.from(iv),
+  }
 }
 
 export function decryptSubject(data: Buffer | Uint8Array, iv: Buffer | Uint8Array): { name: string; descriptor: Float32Array } {

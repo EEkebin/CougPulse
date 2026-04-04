@@ -7,14 +7,45 @@ datasource db {
 }
 
 model Subject {
-  id        String   @id @default(cuid())
-  data      Bytes    // AES-256-GCM encrypted JSON: { name, descriptor }
-  iv        Bytes
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  data            Bytes    // AES-256-GCM encrypted JSON: { name, descriptor }
+  iv              Bytes
+  isTroublemaker  Boolean  @default(false)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Device {
+  id             String   @id @default(cuid())
+  clientKey      String   @unique
+  name           String
+  assignedRoomId String?
+  lastSeenAt     DateTime?
+  lastAudioLevel Float?
+  previewImage   String?
+  previewTakenAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model RoomReading {
-  id         String   @id  // matches Room.id from src/lib/rooms.ts
-  audioLevel Float    @default(0)
-  updatedAt  DateTime @updatedAt
+  id         String   @id @default(cuid())
+  roomId     String
+  deviceId   String
+  audioLevel Float
+  createdAt  DateTime @default(now())
+}
+
+model SecurityAlert {
+  id          String   @id @default(cuid())
+  subjectId   String
+  subjectName String
+  deviceId    String?
+  deviceName  String?
+  roomId      String?
+  note        String?
+  faceImage   String?
+  createdAt   DateTime @default(now())
+  clearedAt   DateTime?
 }
