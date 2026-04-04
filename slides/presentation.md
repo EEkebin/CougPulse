@@ -68,15 +68,15 @@ The full workflow runs end to end with live data.
 
 ---
 
-![bg](Admin-panel.png)
+![bg contain](../../Screenshots/Admin_panel.png)
 
 ---
 
-![bg](camera_device.png)
+![bg contain](../../Screenshots/camera_device.png)
 
 ---
 
-![bg](Heatmap.png)
+![bg contain](../../Screenshots/Heatmap.png)
 
 ---
 
