@@ -21,13 +21,6 @@ export function levelFromValue(value: number) {
   return NOISE_LEVELS.find((level) => normalized >= level.range[0] && normalized <= level.range[1]) ?? NOISE_LEVELS[0];
 }
 
-export function heatColor(value: number, alpha = 0.35) {
-  const normalized = clampNoise(value) / 100;
-  const hue = 120 - normalized * 120;
-  const opacity = Math.max(0, Math.min(1, alpha));
-  return `hsla(${hue}, 90%, 52%, ${opacity})`;
-}
-
 function hash(input: string) {
   return input.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
 }

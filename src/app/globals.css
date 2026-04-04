@@ -684,14 +684,6 @@
   gap: 10px;
 }
 
-.ross-legend-gradient {
-  height: 10px;
-  border-radius: 999px;
-  margin-bottom: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: linear-gradient(90deg, hsla(120, 90%, 52%, 0.8) 0%, hsla(0, 90%, 52%, 0.8) 100%);
-}
-
 .ross-legend-item,
 .ross-check-item {
   display: flex;
@@ -818,8 +810,8 @@
 }
 
 .ross-room-shape {
-  stroke: rgba(170, 216, 255, 0.95);
-  stroke-width: 2;
+  stroke: rgba(58, 64, 72, 0.9);
+  stroke-width: 3;
   vector-effect: non-scaling-stroke;
   transition: filter 120ms ease;
 }
@@ -859,23 +851,23 @@
 }
 
 .ross-room-shape.level-green {
-  fill: hsla(120, 90%, 52%, 0.35);
+  fill: #f3f3f3;
 }
 
 .ross-room-shape.level-blue {
-  fill: hsla(90, 90%, 52%, 0.35);
+  fill: #e6dddd;
 }
 
 .ross-room-shape.level-yellow {
-  fill: hsla(60, 90%, 52%, 0.35);
+  fill: #d9bebe;
 }
 
 .ross-room-shape.level-orange {
-  fill: hsla(30, 90%, 52%, 0.35);
+  fill: #cd9090;
 }
 
 .ross-room-shape.level-red {
-  fill: hsla(0, 90%, 52%, 0.35);
+  fill: #b93a3a;
 }
 
 .ross-list {
@@ -1383,23 +1375,23 @@
 }
 
 .level-green {
-  background: hsla(120, 90%, 52%, 0.65);
+  background: #f3f3f3;
 }
 
 .level-blue {
-  background: hsla(90, 90%, 52%, 0.65);
+  background: #e6dddd;
 }
 
 .level-yellow {
-  background: hsla(60, 90%, 52%, 0.65);
+  background: #d9bebe;
 }
 
 .level-orange {
-  background: hsla(30, 90%, 52%, 0.65);
+  background: #cd9090;
 }
 
 .level-red {
-  background: hsla(0, 90%, 52%, 0.65);
+  background: #b93a3a;
 }
 
 @keyframes rise-in {
