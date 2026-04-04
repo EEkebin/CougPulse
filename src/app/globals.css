@@ -586,6 +586,7 @@
   gap: 16px;
   padding: 16px;
   min-height: calc(100vh - 96px);
+  align-items: start;
 }
 
 .ross-admin-shell {
@@ -731,6 +732,7 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  align-self: start;
 }
 
 .ross-canvas-tools {
