@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { encryptSubject, decryptSubject } from '@/lib/crypto'
+import { requireAdminUser } from '@/lib/auth'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { unauthorized } = await requireAdminUser(req)
+  if (unauthorized) return unauthorized
+
   const subjects = await prisma.subject.findMany({ orderBy: { createdAt: 'asc' } })
   return NextResponse.json(
     subjects.map(s => {
@@ -21,6 +25,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { unauthorized } = await requireAdminUser(req)
+  if (unauthorized) return unauthorized
+
   const { name, descriptor, isTroublemaker = false, notes = null } = await req.json()
   if (!name || !Array.isArray(descriptor)) {
     return NextResponse.json({ error: 'Missing name or descriptor' }, { status: 400 })

@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { DEVICE_ONLINE_MS } from '@/lib/devices'
-import { ROOM_MAP } from '@/lib/rooms'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const room = await prisma.room.findUnique({
+    where: { id },
+    include: { floor: true },
+  })
 
-  if (!ROOM_MAP.has(id)) {
+  if (!room) {
     return NextResponse.json({ error: 'Room not found' }, { status: 404 })
   }
 
@@ -26,7 +29,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   return NextResponse.json({
     id,
-    room: ROOM_MAP.get(id),
+    room: {
+      id: room.id,
+      name: room.name,
+      floorId: room.floorId,
+      floor: room.floor.sortOrder,
+      points: room.points,
+    },
     audioLevel: average,
     activeDeviceCount: devices.length,
     updatedAt: devices[0]?.lastSeenAt ?? null,

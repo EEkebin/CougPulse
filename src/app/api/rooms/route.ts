@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { DEVICE_ONLINE_MS } from '@/lib/devices'
-import { ROOM_OPTIONS } from '@/lib/rooms'
 
 export async function GET() {
   const cutoff = new Date(Date.now() - DEVICE_ONLINE_MS)
@@ -13,9 +12,17 @@ export async function GET() {
     },
     orderBy: { updatedAt: 'desc' },
   })
+  const floors = await prisma.floor.findMany({
+    orderBy: { sortOrder: 'asc' },
+    include: { rooms: true },
+  })
 
   const roomMap = new Map(
-    ROOM_OPTIONS.map((room) => [
+    floors.flatMap((floor) => floor.rooms.map((room) => ({
+      id: room.id,
+      floor: floor.sortOrder,
+      name: room.name,
+    }))).map((room) => [
       room.id,
       { id: room.id, floor: room.floor, name: room.name, audioLevel: null as number | null, activeDeviceCount: 0, updatedAt: null as Date | null },
     ])

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAdminUser } from '@/lib/auth'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { unauthorized } = await requireAdminUser(req)
+  if (unauthorized) return unauthorized
+
   const { id } = await params
   const { audioLevel, previewImage } = await req.json().catch(() => ({}))
   const existing = await prisma.device.findUnique({ where: { id } })

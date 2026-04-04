@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import * as faceapi from "face-api.js";
 import { defaultDeviceName } from "@/lib/devices";
-import { ROOM_OPTIONS } from "@/lib/rooms";
+import type { LayoutFloor } from "@/lib/layout-types";
 
 type Device = {
   id: string;
@@ -69,6 +69,7 @@ export default function DevicePage() {
   const lastRecognitionRef = useRef(0);
 
   const [device, setDevice] = useState<Device | null>(null);
+  const [floors, setFloors] = useState<LayoutFloor[]>([]);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [streamActive, setStreamActive] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -79,6 +80,7 @@ export default function DevicePage() {
   useEffect(() => {
     ensureDevice();
     loadModels();
+    void loadFloors();
   }, []);
 
   useEffect(() => {
@@ -105,7 +107,7 @@ export default function DevicePage() {
         .then((res) => res.ok ? res.json() : null)
         .then((payload) => {
           if (payload?.device) setDevice(payload.device);
-          setReportingEnabled(Boolean(payload?.reportingEnabled));
+                  setReportingEnabled(Boolean(payload?.reportingEnabled));
         })
         .catch(() => {});
     }, HEARTBEAT_MS);
@@ -117,6 +119,7 @@ export default function DevicePage() {
           if (payload) setDevice(payload);
         })
         .catch(() => {});
+      void loadFloors();
     }, DEVICE_REFRESH_MS);
 
     return () => {
@@ -192,7 +195,7 @@ export default function DevicePage() {
                 });
 
                 if (flagged) {
-                  setAlertBanner(`${label} flagged on ${device.name}${payload.roomId ? ` in ${ROOM_OPTIONS.find((room) => room.id === payload.roomId)?.label ?? payload.roomId}` : ""}`);
+                  setAlertBanner(`${label} flagged on ${device.name}${payload.roomId ? ` in ${roomLabelMap.get(payload.roomId) ?? payload.roomId}` : ""}`);
                 }
               }
 
@@ -273,6 +276,11 @@ export default function DevicePage() {
     }
   }
 
+  async function loadFloors() {
+    const res = await fetch("/api/floors", { cache: "no-store" });
+    if (res.ok) setFloors(await res.json());
+  }
+
   async function startStreaming() {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -351,10 +359,20 @@ export default function DevicePage() {
     return canvas.toDataURL("image/jpeg", 0.72);
   }
 
+  const roomLabelMap = useMemo(
+    () =>
+      new Map(
+        floors.flatMap((floor) =>
+          floor.rooms.map((room) => [room.id, `${room.name} (${floor.name})`] as const)
+        )
+      ),
+    [floors]
+  );
+
   const assignedRoomLabel = useMemo(() => {
     if (!device?.assignedRoomId) return "Waiting for security assignment";
-    return ROOM_OPTIONS.find((room) => room.id === device.assignedRoomId)?.label ?? device.assignedRoomId;
-  }, [device?.assignedRoomId]);
+    return roomLabelMap.get(device.assignedRoomId) ?? device.assignedRoomId;
+  }, [device?.assignedRoomId, roomLabelMap]);
 
   return (
     <main className="cp-shell">
@@ -369,10 +387,10 @@ export default function DevicePage() {
               <p>This phone or laptop joins the system as a camera and microphone device.</p>
             </div>
             <div className="cp-topbar-actions">
-              <Link href="/" className="cp-btn cp-btn-ghost">
+              <Link href="/admin" className="cp-btn cp-btn-ghost">
                 Security Console
               </Link>
-              <Link href="/map" className="cp-btn cp-btn-primary">
+              <Link href="/" className="cp-btn cp-btn-primary">
                 Student Heatmap
               </Link>
             </div>

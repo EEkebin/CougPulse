@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { decryptSubject } from '@/lib/crypto'
+import { requireAdminUser } from '@/lib/auth'
 
 function euclideanDistance(a: Float32Array, b: Float32Array): number {
   let sum = 0
@@ -11,6 +12,9 @@ function euclideanDistance(a: Float32Array, b: Float32Array): number {
 const THRESHOLD = 0.6
 
 export async function POST(req: NextRequest) {
+  const { unauthorized } = await requireAdminUser(req)
+  if (unauthorized) return unauthorized
+
   const { descriptor, deviceId, faceImage } = await req.json()
   if (!Array.isArray(descriptor)) {
     return NextResponse.json({ error: 'Missing descriptor' }, { status: 400 })

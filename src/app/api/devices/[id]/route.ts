@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAdminUser } from '@/lib/auth'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { unauthorized } = await requireAdminUser(_req)
+  if (unauthorized) return unauthorized
+
   const { id } = await params
   const device = await prisma.device.findUnique({ where: { id } })
 
@@ -13,6 +17,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { unauthorized } = await requireAdminUser(req)
+  if (unauthorized) return unauthorized
+
   const { id } = await params
   const { name, assignedRoomId } = await req.json()
 

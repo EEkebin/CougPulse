@@ -1,0 +1,28 @@
+CREATE TABLE "Floor" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "sortOrder" INTEGER NOT NULL DEFAULT 0,
+    "floorPlanImage" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Floor_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE "Room" (
+    "id" TEXT NOT NULL,
+    "floorId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "shape" TEXT NOT NULL DEFAULT 'polygon',
+    "points" JSONB NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Room_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX "Room_floorId_idx" ON "Room"("floorId");
+
+ALTER TABLE "Room"
+ADD CONSTRAINT "Room_floorId_fkey"
+FOREIGN KEY ("floorId") REFERENCES "Floor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
