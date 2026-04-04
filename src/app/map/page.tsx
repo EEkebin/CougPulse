@@ -190,14 +190,18 @@ export default function MapPage() {
             <div className="ross-tool-pill">{mapTimestamp}</div>
           </div>
           <div className="ross-canvas-wrap ross-editor-canvas">
-            {currentFloor?.floorPlanImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={currentFloor.floorPlanImage} alt={currentFloor.name} className="ross-floor-image" />
-            ) : (
-              <div className="ross-placeholder">No floor plan uploaded for this floor yet.</div>
-            )}
-
             <svg className="ross-overlay-svg" viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`} preserveAspectRatio="none">
+              {currentFloor?.floorPlanImage ? (
+                <image
+                  href={currentFloor.floorPlanImage}
+                  x="0"
+                  y="0"
+                  width={SVG_SIZE}
+                  height={SVG_SIZE}
+                  preserveAspectRatio="none"
+                />
+              ) : null}
+
               {currentFloor?.rooms.map((room) => {
                 const reading = readings.get(room.id);
                 const value = reading?.audioLevel != null && (reading.activeDeviceCount ?? 0) > 0 ? clampNoise(reading.audioLevel) : null;
@@ -221,6 +225,10 @@ export default function MapPage() {
                 );
               })}
             </svg>
+
+            {!currentFloor?.floorPlanImage ? (
+              <div className="ross-placeholder">No floor plan uploaded for this floor yet.</div>
+            ) : null}
           </div>
         </section>
 

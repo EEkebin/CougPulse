@@ -7,7 +7,13 @@ import type { LayoutFloor, LayoutPoint } from "@/lib/layout-types";
 
 const SVG_SIZE = 1000;
 
-type Mode = "draw-rect" | "draw-polygon" | null;
+type Mode = "select" | "draw-rect" | "draw-polygon";
+
+type DragState = {
+  roomId: string;
+  startPoint: LayoutPoint;
+  originalPoints: LayoutPoint[];
+};
 
 function clamp(value: number, min = 0, max = 1) {
   return Math.max(min, Math.min(max, value));
@@ -52,11 +58,13 @@ export default function FloorLayoutEditor({
 }) {
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(floors[0]?.id ?? null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [mode, setMode] = useState<Mode>(null);
+  const [mode, setMode] = useState<Mode>("select");
   const [draftRectStart, setDraftRectStart] = useState<LayoutPoint | null>(null);
   const [draftRectCurrent, setDraftRectCurrent] = useState<LayoutPoint | null>(null);
   const [polygonPoints, setPolygonPoints] = useState<LayoutPoint[]>([]);
   const [polygonHover, setPolygonHover] = useState<LayoutPoint | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ roomId: string; points: LayoutPoint[] } | null>(null);
   const [roomNameDraft, setRoomNameDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
@@ -93,7 +101,7 @@ export default function FloorLayoutEditor({
     setRoomNameDraft(selectedRoom.name);
   }, [selectedRoom, selectedRoomId]);
 
-  function getRelativePoint(event: React.PointerEvent<SVGSVGElement>) {
+  function getRelativePoint(event: React.PointerEvent<SVGElement>) {
     const rect = canvasWrapRef.current?.getBoundingClientRect();
     if (!rect) return { x: 0.5, y: 0.5 };
 
@@ -125,6 +133,37 @@ export default function FloorLayoutEditor({
     await onLayoutChange();
   }
 
+  async function moveRoom(roomId: string, points: LayoutPoint[]) {
+    await adminFetch(`/api/layout/rooms/${roomId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ points: normalizePoints(points) }),
+    });
+    await onLayoutChange();
+  }
+
+  function offsetPoints(points: LayoutPoint[], dx: number, dy: number) {
+    return points.map((point) => ({ x: clamp(point.x + dx), y: clamp(point.y + dy) }));
+  }
+
+  function cancelDrawingMode() {
+    setDraftRectStart(null);
+    setDraftRectCurrent(null);
+    setPolygonPoints([]);
+    setPolygonHover(null);
+    setDragState(null);
+    setDragPreview(null);
+    setMode("select");
+  }
+
+  function finishPolygonShape() {
+    if (mode !== "draw-polygon") return;
+    if (polygonPoints.length >= 3) void createRoom(polygonPoints);
+    setPolygonPoints([]);
+    setPolygonHover(null);
+    setMode("select");
+  }
+
   async function saveRoomName() {
     if (!selectedRoomId) return;
     setSaving(true);
@@ -146,6 +185,33 @@ export default function FloorLayoutEditor({
     await onLayoutChange();
     setSaving(false);
   }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const activeTag = (document.activeElement as HTMLElement | null)?.tagName ?? "";
+      const inTextInput = activeTag === "INPUT" || activeTag === "TEXTAREA";
+
+      if (event.key === "Enter" && mode === "draw-polygon" && !inTextInput) {
+        event.preventDefault();
+        finishPolygonShape();
+      }
+
+      if ((event.key === "Delete" || event.key === "Backspace") && mode === "select" && selectedRoomId && !inTextInput) {
+        event.preventDefault();
+        void deleteRoom();
+      }
+
+      if (event.key === "Escape") {
+        if (mode === "draw-polygon" || mode === "draw-rect") {
+          event.preventDefault();
+          cancelDrawingMode();
+        }
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [deleteRoom, finishPolygonShape, mode, polygonPoints, selectedRoomId]);
 
   async function uploadFloorPlan(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -244,25 +310,27 @@ export default function FloorLayoutEditor({
         <section className="ross-card">
           <h2>3) Drawing Tools</h2>
           <div className="ross-mode-row">
+            <button type="button" className={`ross-mode-btn${mode === "select" ? " active" : ""}`} onClick={() => setMode("select")}>
+              Select
+            </button>
             <button type="button" className={`ross-mode-btn${mode === "draw-rect" ? " active" : ""}`} onClick={() => setMode("draw-rect")}>
               Draw Rectangle
             </button>
             <button type="button" className={`ross-mode-btn${mode === "draw-polygon" ? " active" : ""}`} onClick={() => setMode("draw-polygon")}>
               Draw Polygon
             </button>
-            {mode ? (
+            {mode !== "select" ? (
               <button
                 type="button"
                 className="ross-btn"
-                onClick={() => {
-                  setMode(null);
-                  setDraftRectStart(null);
-                  setDraftRectCurrent(null);
-                  setPolygonPoints([]);
-                  setPolygonHover(null);
-                }}
+                onClick={cancelDrawingMode}
               >
                 Stop Drawing
+              </button>
+            ) : null}
+            {mode === "select" && selectedRoomId ? (
+              <button type="button" className="ross-btn ross-btn-danger" onClick={() => void deleteRoom()} disabled={saving}>
+                Delete Selected
               </button>
             ) : null}
           </div>
@@ -270,28 +338,19 @@ export default function FloorLayoutEditor({
             {mode === "draw-rect"
               ? "Click and drag to create a room."
               : mode === "draw-polygon"
-              ? "Click to place polygon points, then finish the room."
-              : "Click any room to rename or delete it."}
+              ? "Click to place polygon points, then finish the room (or press Enter)."
+              : "Use Select mode to click, drag, or delete a room shape."}
           </p>
           {mode === "draw-polygon" && (
             <div className="ross-actions">
               <button
                 type="button"
                 className="ross-btn"
-                onClick={() => {
-                  if (polygonPoints.length >= 3) void createRoom(polygonPoints);
-                  setPolygonPoints([]);
-                  setPolygonHover(null);
-                  setMode(null);
-                }}
+                onClick={finishPolygonShape}
               >
                 Finish Shape
               </button>
-              <button type="button" className="ross-btn" onClick={() => {
-                setPolygonPoints([]);
-                setPolygonHover(null);
-                setMode(null);
-              }}>
+              <button type="button" className="ross-btn" onClick={cancelDrawingMode}>
                 Cancel Shape
               </button>
             </div>
@@ -353,10 +412,23 @@ export default function FloorLayoutEditor({
 
               if (mode === "draw-polygon") {
                 setPolygonPoints((current) => [...current, point]);
+                return;
+              }
+
+              if (mode === "select") {
+                setDragState(null);
+                setDragPreview(null);
               }
             }}
             onPointerMove={(event) => {
               const point = getRelativePoint(event);
+              if (mode === "select" && dragState) {
+                const dx = point.x - dragState.startPoint.x;
+                const dy = point.y - dragState.startPoint.y;
+                setDragPreview({ roomId: dragState.roomId, points: offsetPoints(dragState.originalPoints, dx, dy) });
+                return;
+              }
+
               if (mode === "draw-rect" && draftRectStart) {
                 setDraftRectCurrent(point);
               }
@@ -365,26 +437,56 @@ export default function FloorLayoutEditor({
               }
             }}
             onPointerUp={() => {
+              if (mode === "select" && dragState) {
+                const moved = !!dragPreview?.points.some((point, index) => {
+                  const original = dragState.originalPoints[index];
+                  if (!original) return false;
+                  return Math.abs(point.x - original.x) > 0.0001 || Math.abs(point.y - original.y) > 0.0001;
+                });
+
+                if (dragPreview && moved) {
+                  void moveRoom(dragPreview.roomId, dragPreview.points);
+                }
+                setDragState(null);
+                setDragPreview(null);
+                return;
+              }
+
               if (mode === "draw-rect" && draftRect) {
                 void createRoom(draftRect);
                 setDraftRectStart(null);
                 setDraftRectCurrent(null);
-                setMode(null);
+                setMode("select");
+              }
+            }}
+            onPointerLeave={() => {
+              if (mode === "draw-polygon") {
+                setPolygonHover(null);
               }
             }}
           >
             {selectedFloor?.rooms.map((room) => {
-              const center = centroid(room.points);
+              const roomPoints = dragPreview?.roomId === room.id ? dragPreview.points : room.points;
+              const center = centroid(roomPoints);
 
               return (
                 <g key={room.id} onClick={() => {
-                  if (mode) return;
+                  if (mode !== "select") return;
                   setSelectedRoomId(room.id);
                   setRoomNameDraft(room.name);
                 }}>
                   <polygon
-                    points={pointsToSvg(room.points)}
+                    points={pointsToSvg(roomPoints)}
                     className={`ross-room-shape ross-editor-room${selectedRoomId === room.id ? " selected" : ""}`}
+                    onPointerDown={(event) => {
+                      if (mode !== "select") return;
+                      event.stopPropagation();
+                      const point = getRelativePoint(event);
+                      setSelectedRoomId(room.id);
+                      setRoomNameDraft(room.name);
+                      setDragState({ roomId: room.id, startPoint: point, originalPoints: room.points });
+                      setDragPreview({ roomId: room.id, points: room.points });
+                    }}
                   />
                   <text className="ross-room-label" x={center.x * SVG_SIZE} y={center.y * SVG_SIZE}>
                     {room.name}
