@@ -71,6 +71,10 @@ function setMode(mode) {
   refs.canvasWrap.style.cursor = mode === 'draw-room' ? 'crosshair' : 'default';
 }
 
+function setDragSelectionLock(isLocked) {
+  document.body.classList.toggle('is-dragging-room', isLocked);
+}
+
 function getRelativePoint(event) {
   const rect = refs.canvasWrap.getBoundingClientRect();
   const x = clamp((event.clientX - rect.left) / rect.width, 0, 1);
@@ -108,6 +112,7 @@ function renderOverlay() {
 
     roomEl.addEventListener('mousedown', (event) => {
       event.stopPropagation();
+      event.preventDefault();
       state.selectedRoomId = room.id;
       if (state.mode === 'select') {
         const point = getRelativePoint(event);
@@ -117,6 +122,7 @@ function renderOverlay() {
           roomX: room.x,
           roomY: room.y,
         };
+        setDragSelectionLock(true);
       }
       renderAll();
     });
@@ -356,7 +362,9 @@ refs.canvasWrap.addEventListener('mousedown', (event) => {
   const point = getRelativePoint(event);
 
   if (state.mode === 'draw-room') {
+    event.preventDefault();
     state.drawStart = point;
+    setDragSelectionLock(true);
     refs.draftRoom.classList.remove('hidden');
     refs.draftRoom.style.left = `${point.x * 100}%`;
     refs.draftRoom.style.top = `${point.y * 100}%`;
@@ -409,6 +417,7 @@ window.addEventListener('mouseup', (event) => {
 
   state.activeDragRoomId = null;
   state.dragRoomStart = null;
+  setDragSelectionLock(false);
 });
 
 refs.randomizeBtn.addEventListener('click', () => {

@@ -23,6 +23,12 @@ body {
   min-height: 100vh;
 }
 
+body.is-dragging-room,
+body.is-dragging-room * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .top-bar {
   display: flex;
   justify-content: space-between;
