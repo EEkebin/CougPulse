@@ -74,9 +74,8 @@ const CALIB_STEPS = [
 const HOLD_MS = 1300;
 const BETWEEN_MS = 900;
 const SECURITY_REFRESH_MS = 2500;
-const CALIBRATION_DETECTOR_OPTIONS = new faceapi.TinyFaceDetectorOptions({
-  inputSize: 224,
-  scoreThreshold: 0.45,
+const CALIBRATION_DETECTOR_OPTIONS = new faceapi.SsdMobilenetv1Options({
+  minConfidence: 0.45,
 });
 
 export default function AdminPage() {
@@ -308,7 +307,7 @@ export default function AdminPage() {
   async function loadModels() {
     try {
       await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
+        faceapi.nets.ssdMobilenetv1.loadFromUri("/models"),
         faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
         faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
       ]);

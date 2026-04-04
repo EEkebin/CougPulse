@@ -45,9 +45,8 @@ type DetectionLabel = {
 const HEARTBEAT_MS = 2000;
 const DEVICE_REFRESH_MS = 3000;
 const RECOGNITION_COOLDOWN_MS = 650;
-const DEVICE_DETECTOR_OPTIONS = new faceapi.TinyFaceDetectorOptions({
-  inputSize: 224,
-  scoreThreshold: 0.45,
+const DEVICE_DETECTOR_OPTIONS = new faceapi.SsdMobilenetv1Options({
+  minConfidence: 0.45,
 });
 
 export default function DevicePage() {
@@ -258,7 +257,7 @@ export default function DevicePage() {
   async function loadModels() {
     try {
       await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
+        faceapi.nets.ssdMobilenetv1.loadFromUri("/models"),
         faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
         faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
       ]);
