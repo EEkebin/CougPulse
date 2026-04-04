@@ -1,143 +1,175 @@
 ---
 marp: true
-theme: default
+theme: crimson-gray
 paginate: true
 size: 16:9
 ---
 
 # CougPulse
 
-Secure campus awareness and safety intelligence for WSU Everett
+Smart Campus safety and study support for WSU Everett
 
 ---
 
-## The Problem We Heard
+## Theme Fit: Smart Campus
 
-- WSU Everett stakeholders (IT + Security) need facial detection support for threat response.
-- Existing options failed key standards because sensitive data was not encrypted at rest.
-- Students also lacked a simple way to find quiet, ideal study spaces across campus.
+Why this should score high:
+
+- CougPulse is a full Smart Campus loop: sense, analyze, decide, act.
+- One system helps both students and security.
+- It uses live room data, not static reports.
+
+How we prove it:
+
+- Devices send heartbeat updates from real rooms.
+- Students see live noise levels on the map.
+- Security gets alerts from the same device network.
 
 ---
 
-## Stakeholder Insight
+## Problem + Stakeholders
 
-### Security + IT asked for
+### Security + IT needed
 
-- Practical threat detection support
-- Better controls over sensitive identity/media data
-- A system aligned with campus security expectations
+- Faster response when a flagged person is detected
+- Better protection for sensitive identity and media data
+- A system they can keep using after the hackathon
 
-### Students asked for
+### Students needed
 
 - Fast visibility into which rooms are quiet right now
-- A simple campus map experience without admin complexity
+- A simple map to find better study spaces quickly
 
 ---
 
-## Our Solution
+## Solution Summary
 
-- One secure web platform with two tailored experiences:
-	- **Student heatmap** for room noise awareness
-	- **Security operations console** for device + incident workflows
-- Devices send live audio/video-derived data to support both use cases
-- Sensitive information is encrypted at rest to meet security requirements
-
----
-
-## Core Experiences
-
-### 1) Student Experience
-
-- Live campus heatmap of room noise levels
-- Room-by-room view of quieter study options
-- Near real-time updates from deployed sensing devices
-
-### 2) Security Experience
-
-- Device account management and assignment
-- Floor plan upload + room mapping
-- Face enrollment, troublemaker flagging, and alert review
+- One platform with two focused experiences:
+  - **Student Heatmap:** live room noise
+  - **Security Console:** devices, faces, and alerts
+- Devices send audio level and face-match events in near real time
+- Sensitive data is encrypted at rest
 
 ---
 
-## How It Works (End-to-End)
+## Technical Complexity & Ambition
 
-1. Security configures floors, rooms, and device accounts.
-2. A device signs in and is assigned to a room.
-3. Device sends heartbeat data (audio level + preview image).
-4. Students see live room noise from those updates.
-5. If facial recognition matches a flagged subject, an alert is created.
-6. Security reviews and clears alerts in the admin console.
+Why this should score high:
 
----
+- The project combines auth, mapping, telemetry, and face recognition.
+- The logic is clear and testable, not just UI polish.
+- Security is part of the design from the start.
 
-## System Architecture
+How we prove it:
 
-- **Frontend:** Next.js UI for student map, admin console, and device client pages
-- **API Layer:** Next.js API routes for auth, devices, floors/rooms, faces, and alerts
-- **Database:** PostgreSQL via Prisma
-- **Recognition:** `face-api.js` models loaded in-browser for detection descriptors
-- **Documentation:** OpenAPI + Scalar at `/api/docs`
+- Separate admin and device auth with different tokens
+- Face matching with distance checks, room checks, and alert de-duplication
+- Prisma schema linking rooms, devices, readings, subjects, and alerts
+- Login throttling and encrypted sensitive fields in API and storage
 
 ---
 
-## Security Design
+## Functionality & Execution
+
+Why this should score high:
+
+- The core workflow works end to end.
+- Features are live, not mocked.
+- It handles edge cases like unassigned devices.
+
+How we prove it in demo:
+
+1. Admin creates floors, rooms, and device accounts.
+2. Device logs in and starts heartbeat updates.
+3. Student map updates with live room noise.
+4. Admin enrolls faces and flags subjects.
+5. A flagged match creates an alert.
+6. Security reviews and clears the alert.
+
+---
+
+## Scalability & Feasibility
+
+Why this should score high:
+
+- The system can grow without a full rewrite.
+- The structure is easy to maintain.
+- The stack is practical for real deployment.
+
+How we prove it:
+
+- API routes are split by feature area
+- Floor and room model can scale to more buildings and campuses
+- RoomReading history supports trend analytics
+- OpenAPI docs support onboarding and future integrations
+
+---
+
+## Cool Factor / Creativity & Innovation
+
+Why this should score high:
+
+- One device network gives two benefits: student support and safety response.
+- The experience feels like a live digital campus twin.
+- It is innovative while still privacy-aware.
+
+How we show the wow factor:
+
+- Judges can watch room heat levels update live.
+- The same pipeline can create security alerts with context.
+- The demo shows sensing to action in one flow.
+
+---
+
+## Security Design Highlights
 
 - Sensitive payloads encrypted at rest with AES-256-GCM
-- Admin and device credentials protected with Argon2id hashing
-- Separate auth domains for admins and devices
-- Token-based protected API routes (`x-admin-token`, `x-device-token`)
-- Login attempt throttling to reduce brute-force exposure
-
----
-
-## Data Protection Focus
+- Admin and device passwords protected with Argon2id hashing
+- Separate admin and device auth tokens in protected API routes
+- Login throttling to reduce brute-force attempts
 
 Encrypted-at-rest examples:
 
 - Face enrollment payloads
-- Alert payload details (including face snapshots)
-- Device preview/name sensitive fields
+- Alert payload details and face snapshots
+- Device preview and sensitive name fields
 - Security notes tied to identified subjects
 
-Non-sensitive layout metadata stays queryable for map rendering performance.
-
 ---
 
-## Student Value
+## Documentation
 
-- Find quiet study spaces faster
-- Reduce wasted time searching room-to-room
-- Improve campus experience with clear live visibility
+Why this should score high:
 
----
+- Docs clearly explain purpose, setup, architecture, and security.
+- API docs are interactive and easy to verify.
+- The codebase is organized for quick review.
 
-## Security & IT Value
+How we prove it:
 
-- Operational visibility into connected campus devices
-- Faster response to flagged-person detections
-- Better alignment with encryption-at-rest requirements
-- Unified console for users, devices, layout, and alerts
+- README covers routes, setup, features, and workflows
+- OpenAPI + Scalar docs at `/api/docs`
+- Clear folder split for routes, components, and shared libs
 
 ---
 
 ## Demo Walkthrough
 
-1. Log in to `/admin` as security officer
+1. Log in to `/admin`
 2. Create a floor and draw rooms
-3. Create/sign in a device at `/device`
+3. Log in a device at `/device`
 4. Assign device to a room and start heartbeat
-5. Open `/` to show live student heatmap updates
-6. Trigger recognition and review generated security alert
+5. Open `/` to show live heatmap updates
+6. Trigger recognition and review the alert
 
 ---
 
 ## Impact Summary
 
-- Solves a real stakeholder-validated compliance and safety gap
-- Improves student day-to-day study experience
-- Bridges security operations and student usefulness in one platform
-- Delivers an extensible foundation for broader campus deployment
+- Solves a real campus safety and compliance gap
+- Helps students find better study spaces faster
+- Connects security operations and student value in one tool
+- Creates a strong base for broader campus rollout
 
 ---
 
@@ -145,22 +177,22 @@ Non-sensitive layout metadata stays queryable for map rendering performance.
 
 ### Near-term
 
-- Role-based access controls and audit logs
-- Alert triage metadata and escalation workflows
-- Trend analytics for room utilization/noise over time
+- Role-based access control and audit logs
+- Better alert triage and escalation
+- Noise and room-use trends over time
 
 ### Longer-term
 
 - Multi-campus support
-- Policy-driven data retention controls
-- Integration with campus incident response tooling
+- Policy-based data retention
+- Integration with campus incident response systems
 
 ---
 
 ## Closing
 
-CougPulse helps WSU Everett move from a blocked security capability
-to a secure, practical, and student-beneficial campus intelligence system.
+CougPulse helps WSU Everett move from a blocked idea
+to a practical Smart Campus system that helps both safety and students.
 
 ---
 
