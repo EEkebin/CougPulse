@@ -15,6 +15,7 @@ CougPulse is a campus monitoring platform with two separate experiences:
 - [Data Security](#data-security)
 - [Tech Stack](#tech-stack)
 - [Local Development](#local-development)
+- [Slides](#slides)
 - [Environment Notes](#environment-notes)
 - [Typical Flow](#typical-flow)
 - [API Docs](#api-docs)
@@ -92,6 +93,36 @@ If you want a full local reset instead:
 ./scripts/reset-db.sh
 npm run dev
 ```
+
+## Slides
+
+Presentation slides live in `slides/presentation.md` and use Marp.
+
+Install dependencies if needed:
+
+```bash
+npm install
+```
+
+Preview the deck locally:
+
+```bash
+npm run slides:dev
+```
+
+Export HTML:
+
+```bash
+npm run slides:html
+```
+
+Export PDF:
+
+```bash
+npm run slides:pdf
+```
+
+`slides:pdf` requires a local browser such as Chrome, Edge, or Firefox because Marp uses a browser engine to render PDF output.
 
 ## Environment Notes
 
