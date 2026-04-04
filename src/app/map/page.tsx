@@ -15,7 +15,8 @@ type RoomReading = {
   updatedAt: string | null;
 };
 
-const HEATMAP_POLL_MS = 2000;
+const HEATMAP_POLL_MS = 250;
+const FLOORS_REFRESH_MS = 15000;
 const SVG_SIZE = 1000;
 
 function pointsToSvg(points: LayoutPoint[]) {
@@ -28,7 +29,7 @@ function centroid(points: LayoutPoint[]) {
 }
 
 function timestampText() {
-  return `Updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  return `Updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
 }
 
 export default function MapPage() {
@@ -41,36 +42,54 @@ export default function MapPage() {
   useEffect(() => {
     let active = true;
 
-    async function refresh() {
+    async function loadFloors() {
       try {
-        const [floorsRes, roomsRes] = await Promise.all([
-          fetch("/api/floors", { cache: "no-store" }),
-          fetch("/api/rooms", { cache: "no-store" }),
-        ]);
+        const floorsRes = await fetch("/api/floors", { cache: "no-store" });
+        if (!active || !floorsRes.ok) return;
 
+        const floorData: LayoutFloor[] = await floorsRes.json();
         if (!active) return;
-
-        if (floorsRes.ok) {
-          const floorData: LayoutFloor[] = await floorsRes.json();
-          setFloors(floorData);
-          setCurrentFloorId((current) => current ?? floorData[0]?.id ?? null);
-        }
-
-        if (roomsRes.ok) {
-          const roomData: RoomReading[] = await roomsRes.json();
-          setReadings(new Map(roomData.map((reading) => [reading.id, reading])));
-          setMapTimestamp(timestampText());
-        }
+        setFloors(floorData);
+        setCurrentFloorId((current) => current ?? floorData[0]?.id ?? null);
       } catch {
-        if (active) setMapTimestamp("Waiting for live room updates");
+        // Keep existing floor data when refresh fails.
       }
     }
 
-    refresh();
-    const interval = window.setInterval(refresh, HEATMAP_POLL_MS);
+    void loadFloors();
+    const interval = window.setInterval(loadFloors, FLOORS_REFRESH_MS);
+
     return () => {
       active = false;
       window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let timeoutId: number | null = null;
+
+    async function refreshRooms() {
+      try {
+        const roomsRes = await fetch("/api/rooms", { cache: "no-store" });
+        if (!active || !roomsRes.ok) return;
+
+        const roomData: RoomReading[] = await roomsRes.json();
+        if (!active) return;
+        setReadings(new Map(roomData.map((reading) => [reading.id, reading])));
+        setMapTimestamp(timestampText());
+      } catch {
+        if (active) setMapTimestamp("Waiting for live room updates");
+      } finally {
+        if (active) timeoutId = window.setTimeout(refreshRooms, HEATMAP_POLL_MS);
+      }
+    }
+
+    void refreshRooms();
+
+    return () => {
+      active = false;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
   }, []);
 

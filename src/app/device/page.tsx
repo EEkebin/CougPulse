@@ -42,7 +42,7 @@ type DetectionLabel = {
   isTroublemaker: boolean;
 };
 
-const HEARTBEAT_MS = 2000;
+const HEARTBEAT_MS = 500;
 const DEVICE_REFRESH_MS = 3000;
 const RECOGNITION_COOLDOWN_MS = 650;
 const DEVICE_DETECTOR_OPTIONS = new faceapi.TinyFaceDetectorOptions({
