@@ -2,7 +2,7 @@
 set -e
 
 echo "Wiping database..."
-npx prisma migrate reset --force --skip-seed
+npx prisma migrate reset --force
 
 echo "Pushing schema..."
 npx prisma db push

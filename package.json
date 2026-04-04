@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:reset": "bash scripts/reset-db.sh"
+    "db:reset": "bash scripts/reset-db.sh",
+    "models:download": "bash scripts/download-models.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

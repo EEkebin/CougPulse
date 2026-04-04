@@ -11,3 +11,18 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model RoomReading {
+  id         String   @id @default(cuid())
+  roomNumber String   @unique
+  dbLevel    Float    @default(-60)
+  occupants  String[]
+  updatedAt  DateTime @updatedAt
+}
+
+model Face {
+  id                 String   @id @default(cuid())
+  name               String
+  descriptorEncrypted String  // AES-256-GCM encrypted JSON of float[128]
+  createdAt          DateTime @default(now())
+}
