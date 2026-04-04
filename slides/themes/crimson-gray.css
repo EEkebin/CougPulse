@@ -1,0 +1,57 @@
+/* @theme crimson-gray */
+@import 'default';
+
+:root {
+  --cp-crimson: #9e1b32;
+  --cp-crimson-dark: #7b1226;
+  --cp-gray-900: #1f2328;
+  --cp-gray-700: #4b5563;
+  --cp-gray-100: #f3f4f6bb;
+}
+
+section {
+  background: linear-gradient(135deg, #eceff3 0%, var(--cp-gray-100) 100%);
+  color: var(--cp-gray-900);
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  padding: 56px 72px;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--cp-crimson);
+  letter-spacing: 0.2px;
+}
+
+h1 {
+  border-bottom: 6px solid var(--cp-crimson);
+  display: inline-block;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+strong {
+  color: var(--cp-crimson-dark);
+}
+
+a,
+code {
+  color: var(--cp-crimson-dark);
+}
+
+ul li::marker,
+ol li::marker {
+  color: var(--cp-crimson);
+  font-weight: 700;
+}
+
+blockquote {
+  border-left: 6px solid var(--cp-crimson);
+  background: rgba(158, 27, 50, 0.08);
+  padding: 10px 16px;
+}
+
+section::after {
+  color: var(--cp-gray-700);
+  font-weight: 700;
+}

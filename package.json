@@ -7,9 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "slides:dev": "marp -s slides",
-    "slides:html": "marp slides/presentation.md --html -o slides/dist/presentation.html",
-    "slides:pdf": "marp slides/presentation.md --pdf -o slides/dist/presentation.pdf"
+    "slides:dev": "marp --theme-set=slides/themes/crimson-gray.css --theme=crimson-gray -s slides",
+    "slides:html": "marp --theme-set=slides/themes/crimson-gray.css --theme=crimson-gray slides/presentation.md --html -o slides/dist/presentation.html",
+    "slides:pdf": "marp --theme-set=slides/themes/crimson-gray.css --theme=crimson-gray slides/presentation.md --pdf -o slides/dist/presentation.pdf"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
