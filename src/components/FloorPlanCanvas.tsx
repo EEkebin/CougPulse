@@ -26,23 +26,17 @@ export default function FloorPlanCanvas({
 
   return (
     <div className={wrapperClass} ref={wrapperRef}>
+      {floorPlanImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={floorPlanImage} alt={floorName ?? "Floor plan"} className="ross-floor-image" />
+      ) : null}
+
       <svg
         {...svgProps}
         className={svgClass}
         viewBox={`0 0 ${svgSize} ${svgSize}`}
         preserveAspectRatio="none"
       >
-        {floorPlanImage ? (
-          <image
-            href={floorPlanImage}
-            x="0"
-            y="0"
-            width={svgSize}
-            height={svgSize}
-            preserveAspectRatio="none"
-            aria-label={floorName ?? "Floor plan"}
-          />
-        ) : null}
         {children}
       </svg>
 
