@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import FloorPlanCanvas from "@/components/FloorPlanCanvas";
-import { clampNoise, levelFromValue, NOISE_LEVELS } from "@/lib/noise";
+import { clampNoise, heatColor, NOISE_LEVELS } from "@/lib/noise";
 import type { LayoutFloor, LayoutPoint } from "@/lib/layout-types";
 
 type RoomReading = {
@@ -139,10 +139,11 @@ export default function MapPage() {
 
           <section className="ross-card">
             <h2>Noise Legend</h2>
+            <div className="ross-legend-gradient" aria-hidden="true" />
             <div className="ross-legend-list">
               {NOISE_LEVELS.map((level) => (
                 <div key={level.name} className="ross-legend-item">
-                  <span className={`ross-legend-chip ${level.className}`} />
+                  <span className="ross-legend-chip" style={{ background: heatColor((level.range[0] + level.range[1]) / 2, 0.8) }} />
                   <span>{level.name}</span>
                 </div>
               ))}
@@ -202,7 +203,6 @@ export default function MapPage() {
               {currentFloor?.rooms.map((room) => {
                 const reading = readings.get(room.id);
                 const value = reading?.audioLevel != null && (reading.activeDeviceCount ?? 0) > 0 ? clampNoise(reading.audioLevel) : null;
-                const level = value != null ? levelFromValue(value) : null;
                 const center = centroid(room.points);
                 const tiny = room.points.length <= 4 && room.points.some((point) => point.x > 0.95);
 
@@ -217,7 +217,8 @@ export default function MapPage() {
                   >
                     <polygon
                       points={pointsToSvg(room.points)}
-                      className={`ross-room-shape ${level ? level.className : "ross-room-unassigned"}${selectedRoomId === room.id ? " selected" : ""}`}
+                      className={`ross-room-shape${value == null ? " ross-room-unassigned" : ""}${selectedRoomId === room.id ? " selected" : ""}`}
+                      style={value != null ? { fill: heatColor(value, 0.35) } : undefined}
                     />
                     <text className={`ross-room-label${tiny ? " ross-room-label-tiny" : ""}`} x={center.x * SVG_SIZE} y={(center.y - 0.012) * SVG_SIZE}>
                       {room.name}

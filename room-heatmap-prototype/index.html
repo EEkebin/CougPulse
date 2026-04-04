@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Room Noise Heatmap Prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="top-bar">
+      <div>
+        <h1>Room Noise Heatmap</h1>
+        <p>Prototype: floor plan upload, room bounds, room-assigned mics, live noise view.</p>
+      </div>
+      <div class="status-pill" id="simStatus">Simulation: Off</div>
+    </header>
+
+    <main class="app-shell">
+      <aside class="panel left-panel">
+        <section class="card">
+          <h2>1) Floor Plan</h2>
+          <label class="file-upload">
+            <input type="file" id="floorPlanInput" accept="image/*" />
+            <span>Upload Image</span>
+          </label>
+          <p class="hint">PNG/JPG recommended. Rooms and mics are scaled with the image.</p>
+        </section>
+
+        <section class="card">
+          <h2>2) Edit Mode</h2>
+          <div class="mode-row" id="modeButtons">
+            <button class="mode-btn active" data-mode="select">Select/Move</button>
+            <button class="mode-btn" data-mode="draw-rect">Draw Rectangle</button>
+            <button class="mode-btn" data-mode="draw-polygon">Draw Polygon</button>
+          </div>
+          <p class="hint" id="modeHint">Draw rooms by dragging. Each room gets microphones assigned to it.</p>
+        </section>
+
+        <section class="card">
+          <h2>3) Selected Room</h2>
+          <div id="roomInspector" class="inspector empty">
+            Select a room to rename or assign microphones.
+          </div>
+        </section>
+      </aside>
+
+      <section class="canvas-panel">
+        <div class="canvas-tools">
+          <button id="finishPolygonBtn" class="hidden">Finish Shape</button>
+          <button id="cancelPolygonBtn" class="hidden">Cancel Shape</button>
+          <button id="fitViewBtn">Reset View</button>
+          <button id="toggleHeatBtn" class="primary">Heatmap: On</button>
+        </div>
+        <div class="canvas-wrap" id="canvasWrap">
+          <img id="floorPlanImage" alt="Floor plan" />
+          <svg id="overlaySvg" viewBox="0 0 1000 1000" preserveAspectRatio="none"></svg>
+          <div class="placeholder" id="placeholderState">
+            Upload a floor plan to begin creating rooms.
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel right-panel">
+        <section class="card">
+          <h2>Microphones</h2>
+          <div id="micList" class="list empty">No room microphones yet.</div>
+        </section>
+
+        <section class="card">
+          <h2>Live Noise</h2>
+          <div class="actions">
+            <button id="randomizeBtn">Randomize Once</button>
+            <button id="simulateBtn" class="primary">Start Simulation</button>
+          </div>
+          <p class="hint">Simulates live decibel values for each microphone.</p>
+        </section>
+
+        <section class="card">
+          <h2>Rooms</h2>
+          <div id="roomList" class="list empty">No rooms yet.</div>
+        </section>
+      </aside>
+    </main>
+
+    <template id="roomInspectorTemplate">
+      <div class="field-group">
+        <label for="roomNameInput">Room Name</label>
+        <input id="roomNameInput" type="text" />
+      </div>
+      <div class="field-group">
+        <label>Room Microphones</label>
+        <div id="roomMicSummary" class="hint"></div>
+      </div>
+      <div class="actions compact">
+        <button id="addRoomMicBtn">Add Mic to Room</button>
+        <button id="removeRoomMicBtn">Remove Mic</button>
+      </div>
+      <div class="actions compact">
+        <button id="deleteRoomBtn" class="danger">Delete Room</button>
+      </div>
+    </template>
+
+    <script src="./app-v2.js"></script>
+  </body>
+</html>
