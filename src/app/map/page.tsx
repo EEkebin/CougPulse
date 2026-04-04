@@ -47,11 +47,22 @@ export default function MapPage() {
   const [activity, setActivity] = useState<ActivityBucket[]>([]);
   const [mapTimestamp, setMapTimestamp] = useState("Waiting for live room updates");
 
+  const currentFloor = floors.find((floor) => floor.id === currentFloorId) ?? floors[0] ?? null;
+  const selectedRoom = currentFloor?.rooms.find((room) => room.id === selectedRoomId) ?? null;
+  const selectedReading = selectedRoom ? readings.get(selectedRoom.id) : null;
+
   useEffect(() => {
     const node = histogramRef.current;
     if (!node) return;
     node.scrollLeft = node.scrollWidth;
   }, [activity.length]);
+
+  useEffect(() => {
+    if (selectedRoomId && !selectedRoom) {
+      setSelectedRoomId(null);
+      setActivity([]);
+    }
+  }, [selectedRoomId, selectedRoom]);
 
   useEffect(() => {
     let active = true;
@@ -85,8 +96,8 @@ export default function MapPage() {
 
     async function refreshRooms() {
       try {
-        const activityRequest = selectedRoomId
-          ? fetch(`/api/rooms/activity?roomId=${encodeURIComponent(selectedRoomId)}`, { cache: "no-store" })
+        const activityRequest = selectedRoom
+          ? fetch(`/api/rooms/activity?roomId=${encodeURIComponent(selectedRoom.id)}`, { cache: "no-store" })
           : Promise.resolve<Response | null>(null);
 
         const [roomsRes, activityRes] = await Promise.all([
@@ -123,12 +134,7 @@ export default function MapPage() {
       active = false;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     };
-  }, [selectedRoomId]);
-
-  const currentFloor = floors.find((floor) => floor.id === currentFloorId) ?? floors[0] ?? null;
-
-  const selectedRoom = currentFloor?.rooms.find((room) => room.id === selectedRoomId) ?? null;
-  const selectedReading = selectedRoom ? readings.get(selectedRoom.id) : null;
+  }, [selectedRoom]);
 
   const liveRooms = !currentFloor
     ? []
@@ -271,8 +277,8 @@ export default function MapPage() {
 
         <aside className="ross-panel">
           <section className="ross-card">
-            <h2>Voice Activity (Past Hour)</h2>
-            {selectedRoomId && activity.length > 0 ? (
+            <h2>Voice Activity (Past 10 Minutes)</h2>
+            {selectedRoom && activity.length > 0 ? (
               <>
                 <div className="ross-histogram-frame">
                   <div className="ross-histogram-y-axis" aria-hidden="true">
@@ -304,7 +310,7 @@ export default function MapPage() {
               </>
             ) : (
               <div className="ross-inspector ross-empty">
-                {selectedRoomId ? "No voice activity data for the selected room." : "Select a room to view its voice activity histogram."}
+                {selectedRoom ? "No voice activity data for the selected room." : "Select a room to view its voice activity histogram."}
               </div>
             )}
           </section>
