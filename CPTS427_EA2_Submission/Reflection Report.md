@@ -37,9 +37,9 @@ I think I did well overall and gave as much as I could throughout the event. I c
 
 # Proof of Participation
 
-![](..\CPTS427_EA2_Submission\Event_Photos\IMG_0411.jpg)
+![](../CPTS427_EA2_Submission/Event_Photos/IMG_0411.jpg)
 
-![](..\CPTS427_EA2_Submission\Event_Photos\IMG_0513.jpg)
+![](../CPTS427_EA2_Submission/Event_Photos/IMG_0513.jpg)
 
-![](..\CPTS427_EA2_Submission\Event_Photos\IMG_0518.jpg)
+![](../CPTS427_EA2_Submission/Event_Photos/IMG_0518.jpg)
 
