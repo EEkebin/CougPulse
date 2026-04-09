@@ -1,3 +1,5 @@
+## Check out the "CPTS427_EA2_Submission" for EA-2 Assignment
+
 # CougPulse
 
 CougPulse is a campus monitoring platform with two connected experiences:
